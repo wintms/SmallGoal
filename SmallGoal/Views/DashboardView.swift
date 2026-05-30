@@ -1,0 +1,209 @@
+import SwiftData
+import SwiftUI
+
+struct DashboardView: View {
+    @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
+    @Query(sort: \Asset.updatedAt, order: .reverse) private var assets: [Asset]
+
+    private var snapshot: PortfolioSnapshot {
+        PortfolioCalculator.snapshot(for: assets)
+    }
+
+    private var performances: [AssetPerformance] {
+        assets
+            .map { PortfolioCalculator.performance(for: $0) }
+            .sorted { abs($0.dailyProfitLoss) > abs($1.dailyProfitLoss) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    summaryHeader
+                    allocationSection
+                    dailyContributionSection
+                    moversSection
+                }
+                .padding()
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("投资账本")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await quoteRefreshService.refresh(assets: assets) }
+                    } label: {
+                        if quoteRefreshService.isRefreshing {
+                            ProgressView()
+                        } else {
+                            Label("刷新行情", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    .disabled(quoteRefreshService.isRefreshing)
+                }
+            }
+        }
+    }
+
+    private var summaryHeader: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("总资产")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(FinanceFormatters.currency(snapshot.totalValue))
+                        .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer()
+                Image(systemName: snapshot.dailyProfitLoss >= 0 ? "arrow.up.right" : "arrow.down.right")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(FinanceFormatters.profitColor(snapshot.dailyProfitLoss))
+                    .frame(width: 44, height: 44)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
+            HStack(spacing: 12) {
+                MetricTile(
+                    title: "今日盈亏",
+                    value: FinanceFormatters.signedCurrency(snapshot.dailyProfitLoss),
+                    tint: FinanceFormatters.profitColor(snapshot.dailyProfitLoss)
+                )
+                MetricTile(
+                    title: "累计盈亏",
+                    value: FinanceFormatters.signedCurrency(snapshot.cumulativeProfitLoss),
+                    tint: FinanceFormatters.profitColor(snapshot.cumulativeProfitLoss)
+                )
+            }
+
+            Text(quoteRefreshService.lastMessage)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(18)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var allocationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitle("资产分布")
+
+            if snapshot.totalValue <= 0 {
+                ContentUnavailableView("暂无资产", systemImage: "tray", description: Text("添加股票、基金、理财或现金后会显示分布。"))
+                    .frame(minHeight: 160)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(snapshot.assetAllocation.filter { $0.value > 0 }) { allocation in
+                        AllocationRow(allocation: allocation)
+                    }
+                }
+            }
+        }
+        .sectionCard()
+    }
+
+    private var dailyContributionSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitle("今日贡献")
+
+            ForEach(AssetType.allCases) { type in
+                let contribution = performances
+                    .filter { $0.asset.type == type }
+                    .reduce(0) { $0 + $1.dailyProfitLoss }
+
+                HStack {
+                    Label(type.title, systemImage: type.systemImage)
+                        .foregroundStyle(type.accentColor)
+                    Spacer()
+                    Text(FinanceFormatters.signedCurrency(contribution))
+                        .foregroundStyle(FinanceFormatters.profitColor(contribution))
+                        .monospacedDigit()
+                }
+                .font(.subheadline)
+            }
+        }
+        .sectionCard()
+    }
+
+    private var moversSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitle("持仓异动")
+
+            if performances.isEmpty {
+                ContentUnavailableView("暂无持仓", systemImage: "chart.line.uptrend.xyaxis")
+                    .frame(minHeight: 120)
+            } else {
+                ForEach(performances.prefix(5)) { item in
+                    NavigationLink {
+                        AssetDetailView(asset: item.asset)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: item.asset.type.systemImage)
+                                .foregroundStyle(item.asset.type.accentColor)
+                                .frame(width: 32, height: 32)
+                                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.asset.name)
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text(item.asset.displayCode)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text(FinanceFormatters.signedCurrency(item.dailyProfitLoss))
+                                    .foregroundStyle(FinanceFormatters.profitColor(item.dailyProfitLoss))
+                                Text(FinanceFormatters.currency(item.currentValue))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .monospacedDigit()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .sectionCard()
+    }
+}
+
+private struct SectionTitle: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.headline)
+    }
+}
+
+private struct AllocationRow: View {
+    let allocation: AssetAllocation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(allocation.type.title, systemImage: allocation.type.systemImage)
+                    .foregroundStyle(allocation.type.accentColor)
+                Spacer()
+                Text(FinanceFormatters.percent(allocation.percent))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            ProgressView(value: allocation.percent)
+                .tint(allocation.type.accentColor)
+            Text(FinanceFormatters.currency(allocation.value))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+    }
+}

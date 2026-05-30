@@ -1,0 +1,487 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		100000000000000000000101 /* SmallGoalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000201 /* SmallGoalApp.swift */; };
+		100000000000000000000102 /* Asset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000202 /* Asset.swift */; };
+		100000000000000000000103 /* Quote.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000203 /* Quote.swift */; };
+		100000000000000000000104 /* PortfolioCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000204 /* PortfolioCalculator.swift */; };
+		100000000000000000000105 /* QuoteProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000205 /* QuoteProvider.swift */; };
+		100000000000000000000106 /* MockQuoteProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000206 /* MockQuoteProvider.swift */; };
+		100000000000000000000107 /* ChinaMarketQuoteProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000207 /* ChinaMarketQuoteProvider.swift */; };
+		100000000000000000000108 /* QuoteRefreshService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000208 /* QuoteRefreshService.swift */; };
+		100000000000000000000109 /* PortfolioViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000209 /* PortfolioViewModel.swift */; };
+		100000000000000000000110 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000210 /* RootTabView.swift */; };
+		100000000000000000000111 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000211 /* DashboardView.swift */; };
+		100000000000000000000112 /* HoldingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000212 /* HoldingsView.swift */; };
+		100000000000000000000113 /* AssetEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000213 /* AssetEditorView.swift */; };
+		100000000000000000000114 /* AssetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000214 /* AssetDetailView.swift */; };
+		100000000000000000000115 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000215 /* SettingsView.swift */; };
+		100000000000000000000116 /* FinanceFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000216 /* FinanceFormatters.swift */; };
+		100000000000000000000117 /* MetricTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000217 /* MetricTile.swift */; };
+		100000000000000000000118 /* PortfolioCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000218 /* PortfolioCalculatorTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		100000000000000000000301 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 100000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 100000000000000000000401;
+			remoteInfo = SmallGoal;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		100000000000000000000201 /* SmallGoalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmallGoalApp.swift; sourceTree = "<group>"; };
+		100000000000000000000202 /* Asset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Asset.swift; sourceTree = "<group>"; };
+		100000000000000000000203 /* Quote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Quote.swift; sourceTree = "<group>"; };
+		100000000000000000000204 /* PortfolioCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCalculator.swift; sourceTree = "<group>"; };
+		100000000000000000000205 /* QuoteProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteProvider.swift; sourceTree = "<group>"; };
+		100000000000000000000206 /* MockQuoteProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockQuoteProvider.swift; sourceTree = "<group>"; };
+		100000000000000000000207 /* ChinaMarketQuoteProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChinaMarketQuoteProvider.swift; sourceTree = "<group>"; };
+		100000000000000000000208 /* QuoteRefreshService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteRefreshService.swift; sourceTree = "<group>"; };
+		100000000000000000000209 /* PortfolioViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000210 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		100000000000000000000211 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		100000000000000000000212 /* HoldingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldingsView.swift; sourceTree = "<group>"; };
+		100000000000000000000213 /* AssetEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetEditorView.swift; sourceTree = "<group>"; };
+		100000000000000000000214 /* AssetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDetailView.swift; sourceTree = "<group>"; };
+		100000000000000000000215 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		100000000000000000000216 /* FinanceFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceFormatters.swift; sourceTree = "<group>"; };
+		100000000000000000000217 /* MetricTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricTile.swift; sourceTree = "<group>"; };
+		100000000000000000000218 /* PortfolioCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioCalculatorTests.swift; sourceTree = "<group>"; };
+		100000000000000000000219 /* SmallGoal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmallGoal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000220 /* SmallGoalTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmallGoalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000221 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		100000000000000000000501 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		100000000000000000000502 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		100000000000000000000601 = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000602 /* SmallGoal */,
+				100000000000000000000608 /* SmallGoalTests */,
+				100000000000000000000609 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		100000000000000000000602 /* SmallGoal */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000201 /* SmallGoalApp.swift */,
+				100000000000000000000603 /* Models */,
+				100000000000000000000604 /* Services */,
+				100000000000000000000605 /* ViewModels */,
+				100000000000000000000606 /* Views */,
+				100000000000000000000221 /* Info.plist */,
+			);
+			path = SmallGoal;
+			sourceTree = "<group>";
+		};
+		100000000000000000000603 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000202 /* Asset.swift */,
+				100000000000000000000203 /* Quote.swift */,
+				100000000000000000000204 /* PortfolioCalculator.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		100000000000000000000604 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000205 /* QuoteProvider.swift */,
+				100000000000000000000206 /* MockQuoteProvider.swift */,
+				100000000000000000000207 /* ChinaMarketQuoteProvider.swift */,
+				100000000000000000000208 /* QuoteRefreshService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		100000000000000000000605 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000209 /* PortfolioViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		100000000000000000000606 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000210 /* RootTabView.swift */,
+				100000000000000000000211 /* DashboardView.swift */,
+				100000000000000000000212 /* HoldingsView.swift */,
+				100000000000000000000213 /* AssetEditorView.swift */,
+				100000000000000000000214 /* AssetDetailView.swift */,
+				100000000000000000000215 /* SettingsView.swift */,
+				100000000000000000000607 /* Components */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		100000000000000000000607 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000216 /* FinanceFormatters.swift */,
+				100000000000000000000217 /* MetricTile.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		100000000000000000000608 /* SmallGoalTests */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000218 /* PortfolioCalculatorTests.swift */,
+			);
+			path = SmallGoalTests;
+			sourceTree = "<group>";
+		};
+		100000000000000000000609 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000219 /* SmallGoal.app */,
+				100000000000000000000220 /* SmallGoalTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		100000000000000000000401 /* SmallGoal */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000701 /* Build configuration list for PBXNativeTarget "SmallGoal" */;
+			buildPhases = (
+				100000000000000000000801 /* Sources */,
+				100000000000000000000501 /* Frameworks */,
+				100000000000000000000802 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = SmallGoal;
+			productName = SmallGoal;
+			productReference = 100000000000000000000219 /* SmallGoal.app */;
+			productType = "com.apple.product-type.application";
+		};
+		100000000000000000000402 /* SmallGoalTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000702 /* Build configuration list for PBXNativeTarget "SmallGoalTests" */;
+			buildPhases = (
+				100000000000000000000803 /* Sources */,
+				100000000000000000000502 /* Frameworks */,
+				100000000000000000000804 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (
+				100000000000000000000901 /* PBXTargetDependency */,
+			);
+			name = SmallGoalTests;
+			productName = SmallGoalTests;
+			productReference = 100000000000000000000220 /* SmallGoalTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		100000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					100000000000000000000401 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					100000000000000000000402 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 100000000000000000000401;
+					};
+				};
+			};
+			buildConfigurationList = 100000000000000000000700 /* Build configuration list for PBXProject "SmallGoal" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				zh-Hans,
+				Base,
+			);
+			mainGroup = 100000000000000000000601;
+			productRefGroup = 100000000000000000000609 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				100000000000000000000401 /* SmallGoal */,
+				100000000000000000000402 /* SmallGoalTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		100000000000000000000802 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		100000000000000000000804 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		100000000000000000000801 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000101 /* SmallGoalApp.swift in Sources */,
+				100000000000000000000102 /* Asset.swift in Sources */,
+				100000000000000000000103 /* Quote.swift in Sources */,
+				100000000000000000000104 /* PortfolioCalculator.swift in Sources */,
+				100000000000000000000105 /* QuoteProvider.swift in Sources */,
+				100000000000000000000106 /* MockQuoteProvider.swift in Sources */,
+				100000000000000000000107 /* ChinaMarketQuoteProvider.swift in Sources */,
+				100000000000000000000108 /* QuoteRefreshService.swift in Sources */,
+				100000000000000000000109 /* PortfolioViewModel.swift in Sources */,
+				100000000000000000000110 /* RootTabView.swift in Sources */,
+				100000000000000000000111 /* DashboardView.swift in Sources */,
+				100000000000000000000112 /* HoldingsView.swift in Sources */,
+				100000000000000000000113 /* AssetEditorView.swift in Sources */,
+				100000000000000000000114 /* AssetDetailView.swift in Sources */,
+				100000000000000000000115 /* SettingsView.swift in Sources */,
+				100000000000000000000116 /* FinanceFormatters.swift in Sources */,
+				100000000000000000000117 /* MetricTile.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000803 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000118 /* PortfolioCalculatorTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		100000000000000000000901 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = 100000000000000000000401 /* SmallGoal */; targetProxy = 100000000000000000000301 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		100000000000000000001001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		100000000000000000001002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		100000000000000000001003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SmallGoal/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smallgoal.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		100000000000000000001004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SmallGoal/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smallgoal.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		100000000000000000001005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smallgoal.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SmallGoal.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SmallGoal";
+			};
+			name = Debug;
+		};
+		100000000000000000001006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smallgoal.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SmallGoal.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SmallGoal";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		100000000000000000000700 /* Build configuration list for PBXProject "SmallGoal" */ = {isa = XCConfigurationList; buildConfigurations = (100000000000000000001001 /* Debug */, 100000000000000000001002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		100000000000000000000701 /* Build configuration list for PBXNativeTarget "SmallGoal" */ = {isa = XCConfigurationList; buildConfigurations = (100000000000000000001003 /* Debug */, 100000000000000000001004 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		100000000000000000000702 /* Build configuration list for PBXNativeTarget "SmallGoalTests" */ = {isa = XCConfigurationList; buildConfigurations = (100000000000000000001005 /* Debug */, 100000000000000000001006 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = 100000000000000000000001 /* Project object */;
+}
