@@ -15,38 +15,13 @@ struct QuoteSettingsView: View {
         Form {
             Section("行情模式") {
                 Picker("模式", selection: $mode) {
-                    ForEach(QuoteProviderMode.allCases) { mode in
+                    ForEach(QuoteProviderMode.allCases.filter { $0 == .mxData }) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
                 Text(mode.description)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-            }
-
-            if mode == .chinaMarket {
-                Section {
-                    TextField("https://example.com/quotes", text: $endpointURLString)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    SecureField(apiKeyPlaceholder, text: $apiKeyInput)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    if quoteRefreshService.configuration.hasAPIKey {
-                        Button(role: .destructive) {
-                            clearAPIKey()
-                        } label: {
-                            Label("清除 API Key", systemImage: "key.slash")
-                        }
-                    }
-                } header: {
-                    Text("通用行情接口")
-                } footer: {
-                    Text("请求格式：GET {endpoint}?codes=600519,510300&apikey=...")
-                }
             }
 
             if mode == .mxData {
