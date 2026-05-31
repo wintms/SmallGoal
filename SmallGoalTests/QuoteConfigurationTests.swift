@@ -34,7 +34,7 @@ final class QuoteConfigurationTests: XCTestCase {
 
         XCTAssertEqual(asset.latestPrice, 10, accuracy: 0.001)
         XCTAssertEqual(asset.previousCloseOrNetValue, 9, accuracy: 0.001)
-        XCTAssertTrue(service.lastMessage.contains("行情已更新"))
+        XCTAssertTrue(service.lastMessage.contains("已更新"))
     }
 
     func testChinaMarketModeWithoutEndpointFailsBeforeRequest() async {
@@ -504,7 +504,7 @@ final class QuoteConfigurationTests: XCTestCase {
         XCTAssertEqual(asset.latestPrice, 8, accuracy: 0.001)
         XCTAssertEqual(asset.previousCloseOrNetValue, 7.5, accuracy: 0.001)
         if case .failure(let message, let detail) = service.state {
-            XCTAssertEqual(message, "行情刷新失败")
+            XCTAssertEqual(message, "更新失败")
             XCTAssertTrue(detail?.contains("HTTP 500") == true)
         } else {
             XCTFail("Expected failure state")

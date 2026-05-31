@@ -140,11 +140,19 @@ struct MXDataQuoteProvider: QuoteProvider {
             let rows = groupedDTOs.flatMap { tableRows(from: $0) }
             guard !rows.isEmpty else { continue }
             let entity = entityByCode[code] ?? (code, code)
+            let fields = mergedFields(from: rows)
+            let priceKeys = fields.keys.filter { k in
+                k.contains("收盘") || k.contains("价") || k.contains("昨") || k.contains("前收") ||
+                k.contains("净值") || k.contains("涨跌")
+            }
+            print("[MXData] 🔍 \(code) merged=\(fields.count) DTOs=\(groupedDTOs.count) rows=\(rows.count) 关键字段: \(priceKeys.map { "\($0)=\(fields[$0] ?? "?")" }.joined(separator: ", "))")
             do {
-                let quote = try quoteFrom(fields: mergedFields(from: rows), code: entity.code, name: entity.name)
+                let quote = try quoteFrom(fields: fields, code: entity.code, name: entity.name)
+                print("[MXData] ✅ \(code) \(entity.name) | 最新价=\(quote.latestPrice) 昨收=\(quote.previousClose) 涨跌额=\(quote.changeAmount) 涨跌幅=\(String(format: "%.4f%%", quote.changePercent * 100)) 时间=\(quote.quoteTime.formatted(.iso8601))")
                 quotes.append(quote)
             } catch {
                 print("[MXData] ⚠️ 解析失败 code=\(code): \(error.localizedDescription)")
+                print("[MXData] ⚠️ 可用字段: \(fields.keys.sorted().joined(separator: ", "))")
                 continue
             }
         }
@@ -162,8 +170,9 @@ struct MXDataQuoteProvider: QuoteProvider {
             throw QuoteProviderError.invalidPayload("妙想接口未返回最新价\(suffix)")
         }
 
-        let changeAmountFromField = firstDouble(in: fields, matching: ["涨跌额", "涨跌", "涨跌值", "涨跌金额", "涨跌价", "区间单位净值增长", "净值增长"])
+        let changeAmountFromField = firstDouble(in: fields, matching: ["涨跌额", "涨跌值", "涨跌金额", "涨跌价", "区间单位净值增长", "复权单位净值增长"])
         let previousCloseFromField = firstDouble(in: fields, matching: ["昨收", "昨收价", "前收盘", "前收", "昨日收盘价"])
+        let changePercentFromField = firstPercent(in: fields, matching: ["涨跌幅", "涨幅", "跌幅", "涨跌比例", "区间单位净值增长率", "净值增长率"])
 
         let changeAmount: Double
         let previousClose: Double
@@ -177,12 +186,15 @@ struct MXDataQuoteProvider: QuoteProvider {
         } else if let ca = changeAmountFromField {
             changeAmount = ca
             previousClose = latestPrice - ca
+        } else if let cp = changePercentFromField, cp != 0 {
+            previousClose = latestPrice / (1 + cp)
+            changeAmount = latestPrice - previousClose
         } else {
             changeAmount = 0
             previousClose = latestPrice
         }
 
-        let changePercent = firstPercent(in: fields, matching: ["涨跌幅", "涨幅", "跌幅", "涨跌比例", "区间单位净值增长率", "净值增长率"])
+        let changePercent = changePercentFromField
             ?? (previousClose == 0 ? 0 : changeAmount / previousClose)
         let quoteTime = firstDate(in: fields, matching: ["date", "日期", "时间", "更新时间"]) ?? .now
 
