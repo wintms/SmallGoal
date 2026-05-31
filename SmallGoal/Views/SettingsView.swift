@@ -55,6 +55,7 @@ struct SettingsView: View {
     @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
     @Query private var assets: [Asset]
     @State private var showingImporter = false
+    @State private var showingDeleteConfirmation = false
     @State private var importMessage: String?
 
     var body: some View {
@@ -91,6 +92,11 @@ struct SettingsView: View {
                     } label: {
                         Label("导入", systemImage: "square.and.arrow.down")
                     }
+                    Button(role: .destructive) {
+                        showingDeleteConfirmation = true
+                    } label: {
+                        Label("清除所有数据", systemImage: "trash")
+                    }
                     if let importMessage {
                         Text(importMessage)
                             .font(.footnote)
@@ -108,7 +114,20 @@ struct SettingsView: View {
             .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
                 importAssets(from: result)
             }
+            .alert("确认删除", isPresented: $showingDeleteConfirmation) {
+                Button("取消", role: .cancel) {}
+                Button("删除", role: .destructive) { clearAllData() }
+            } message: {
+                Text("将删除全部 \(assets.count) 项资产数据，此操作不可撤销。建议先导出备份。")
+            }
         }
+    }
+
+    private func clearAllData() {
+        for asset in assets {
+            modelContext.delete(asset)
+        }
+        try? modelContext.save()
     }
 
     private func exportJSON() -> URL? {
