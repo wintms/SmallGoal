@@ -94,6 +94,7 @@ final class Asset {
     var currency: String
     var note: String
     var quoteUpdatedAt: Date?
+    @Relationship(deleteRule: .cascade, inverse: \CashTransaction.asset) var transactions: [CashTransaction]?
     var createdAt: Date
     var updatedAt: Date
 
@@ -167,5 +168,28 @@ final class Asset {
 
     var needsCNYConversion: Bool {
         type == .stock && resolvedMarket.needsCNYConversion
+    }
+
+    var cashBalance: Double {
+        let net = (transactions ?? []).reduce(0) { $0 + $1.amount }
+        return quantityOrAmount + net
+    }
+}
+
+@Model
+final class CashTransaction {
+    @Attribute(.unique) var id: UUID
+    var amount: Double
+    var note: String
+    var date: Date
+    var createdAt: Date
+    var asset: Asset?
+
+    init(amount: Double, note: String = "", date: Date = .now) {
+        self.id = UUID()
+        self.amount = amount
+        self.note = note
+        self.date = date
+        self.createdAt = .now
     }
 }

@@ -59,7 +59,7 @@ final class QuoteConfigurationTests: XCTestCase {
         XCTAssertEqual(asset.latestPrice, 8, accuracy: 0.001)
         XCTAssertEqual(asset.previousCloseOrNetValue, 7.5, accuracy: 0.001)
         if case .failure(let message, _) = service.state {
-            XCTAssertEqual(message, "行情源尚未配置")
+            XCTAssertEqual(message, "数据源尚未配置")
         } else {
             XCTFail("Expected failure state")
         }

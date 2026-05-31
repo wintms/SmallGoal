@@ -2,7 +2,12 @@ import SwiftUI
 
 struct AssetDetailView: View {
     let asset: Asset
+    @Environment(\.modelContext) private var modelContext
     @State private var showingEditor = false
+    @State private var showingAddTransaction = false
+    @State private var transactionAmount: Double?
+    @State private var transactionNote = ""
+    @State private var transactionDate: Date = .now
 
     private var performance: AssetPerformance {
         PortfolioCalculator.performance(for: asset)
@@ -49,7 +54,9 @@ struct AssetDetailView: View {
             Section("资产信息") {
                 DetailRow("类型", asset.type.title)
                 DetailRow("币种", asset.displayCurrency)
-                DetailRow(quantityTitle, FinanceFormatters.decimal(asset.quantityOrAmount))
+                if asset.type != .cash {
+                    DetailRow(quantityTitle, FinanceFormatters.decimal(asset.quantityOrAmount))
+                }
                 if asset.type == .stock || asset.type == .fund {
                     DetailRow("成本价", FinanceFormatters.valueWithSymbol(asset.cost, symbol: asset.currencySymbol))
                     DetailRow("最新价格", FinanceFormatters.valueWithSymbol(asset.latestPrice, symbol: asset.currencySymbol))
@@ -60,8 +67,53 @@ struct AssetDetailView: View {
                     DetailRow("起息日", asset.startDate.formatted(date: .abbreviated, time: .omitted))
                     DetailRow("到期日", asset.maturityDate.formatted(date: .abbreviated, time: .omitted))
                 }
+                if asset.type == .cash {
+                    DetailRow("初始现金", FinanceFormatters.valueWithSymbol(asset.quantityOrAmount, symbol: asset.currencySymbol))
+                    DetailRow("今日收支", FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol))
+                }
                 if let quoteUpdatedAt = asset.quoteUpdatedAt {
                     DetailRow("行情时间", quoteUpdatedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+            }
+
+            if asset.type == .cash {
+                Section {
+                    ForEach(sortedTransactions) { tx in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                if !tx.note.isEmpty {
+                                    Text(tx.note)
+                                        .font(.subheadline)
+                                }
+                                Text(tx.date.formatted(date: .abbreviated, time: .omitted))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(FinanceFormatters.signedValueWithSymbol(tx.amount, symbol: asset.currencySymbol))
+                                .foregroundStyle(FinanceFormatters.profitColor(tx.amount))
+                                .monospacedDigit()
+                        }
+                    }
+                    .onDelete { offsets in
+                        let sorted = sortedTransactions
+                        for index in offsets {
+                            let tx = sorted[index]
+                            modelContext.delete(tx)
+                        }
+                        try? modelContext.save()
+                    }
+
+                    Button {
+                        transactionAmount = nil
+                        transactionNote = ""
+                        transactionDate = .now
+                        showingAddTransaction = true
+                    } label: {
+                        Label("添加收支", systemImage: "plus.circle")
+                    }
+                } header: {
+                    Text("收支记录")
                 }
             }
 
@@ -85,6 +137,47 @@ struct AssetDetailView: View {
         .sheet(isPresented: $showingEditor) {
             AssetEditorView(asset: asset)
         }
+        .sheet(isPresented: $showingAddTransaction) {
+            NavigationStack {
+                Form {
+                    Section("金额") {
+                        TextField("正数收入，负数支出", value: $transactionAmount, format: .number)
+                            .keyboardType(.numbersAndPunctuation)
+                        DatePicker("日期", selection: $transactionDate, displayedComponents: .date)
+                    }
+                    Section("备注") {
+                        TextField("可选", text: $transactionNote)
+                    }
+                }
+                .navigationTitle("添加收支")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { showingAddTransaction = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("添加") {
+                            addTransaction()
+                            showingAddTransaction = false
+                        }
+                        .disabled((transactionAmount ?? 0) == 0)
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+    }
+
+    private var sortedTransactions: [CashTransaction] {
+        (asset.transactions ?? []).sorted { $0.date > $1.date }
+    }
+
+    private func addTransaction() {
+        guard let amount = transactionAmount, amount != 0 else { return }
+        let tx = CashTransaction(amount: amount, note: transactionNote, date: transactionDate)
+        tx.asset = asset
+        modelContext.insert(tx)
+        try? modelContext.save()
     }
 
     private var quantityTitle: String {

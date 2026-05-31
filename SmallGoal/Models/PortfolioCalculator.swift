@@ -46,7 +46,7 @@ enum PortfolioCalculator {
             let principal = asset.quantityOrAmount
             return principal + accruedYield(for: asset, on: date)
         case .cash:
-            return asset.quantityOrAmount
+            return asset.cashBalance
         }
     }
 
@@ -71,7 +71,10 @@ enum PortfolioCalculator {
         case .wealthProduct:
             return asset.quantityOrAmount * asset.annualYield / 365
         case .cash:
-            return 0
+            let calendar = Calendar.current
+            return (asset.transactions ?? [])
+                .filter { calendar.isDate($0.date, inSameDayAs: date) }
+                .reduce(0) { $0 + $1.amount }
         }
     }
 
