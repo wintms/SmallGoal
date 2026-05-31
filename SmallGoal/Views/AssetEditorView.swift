@@ -10,10 +10,10 @@ struct AssetEditorView: View {
     @State private var name: String
     @State private var code: String
     @State private var market: String
-    @State private var quantityOrAmount: Double
-    @State private var cost: Double
-    @State private var latestPrice: Double
-    @State private var previousCloseOrNetValue: Double
+    @State private var quantityOrAmount: Double?
+    @State private var cost: Double?
+    @State private var latestPrice: Double?
+    @State private var previousCloseOrNetValue: Double?
     @State private var annualYield: Double
     @State private var startDate: Date
     @State private var maturityDate: Date
@@ -27,10 +27,10 @@ struct AssetEditorView: View {
         _name = State(initialValue: asset?.name ?? "")
         _code = State(initialValue: asset?.code ?? "")
         _market = State(initialValue: asset?.market ?? "CN")
-        _quantityOrAmount = State(initialValue: asset?.quantityOrAmount ?? 0)
-        _cost = State(initialValue: asset?.cost ?? 0)
-        _latestPrice = State(initialValue: asset?.latestPrice ?? 0)
-        _previousCloseOrNetValue = State(initialValue: asset?.previousCloseOrNetValue ?? 0)
+        _quantityOrAmount = State(initialValue: asset?.quantityOrAmount)
+        _cost = State(initialValue: asset?.cost)
+        _latestPrice = State(initialValue: asset?.latestPrice)
+        _previousCloseOrNetValue = State(initialValue: asset?.previousCloseOrNetValue)
         _annualYield = State(initialValue: asset?.annualYield ?? 0)
         _startDate = State(initialValue: asset?.startDate ?? .now)
         _maturityDate = State(initialValue: asset?.maturityDate ?? Calendar.current.date(byAdding: .year, value: 1, to: .now) ?? .now)
@@ -55,8 +55,12 @@ struct AssetEditorView: View {
                     if type == .stock || type == .fund {
                         TextField("代码", text: $code)
                             .textInputAutocapitalization(.characters)
-                        TextField("市场", text: $market)
-                            .textInputAutocapitalization(.characters)
+                    }
+                    if type == .stock {
+                        Picker("市场", selection: $market) {
+                            Text("CN").tag("CN")
+                            Text("HK").tag("HK")
+                        }
                     }
                     if type == .cash {
                         TextField("币种", text: $currency)
@@ -107,7 +111,12 @@ struct AssetEditorView: View {
     }
 
     private var canSave: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && quantityOrAmount >= 0
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        guard let qty = quantityOrAmount, qty > 0 else { return false }
+        if type == .stock || type == .fund {
+            guard let c = cost, c > 0 else { return false }
+        }
+        return true
     }
 
     private var namePlaceholder: String {
@@ -142,15 +151,20 @@ struct AssetEditorView: View {
         let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedMarket = market.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "CN" : market.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let resolvedQuantity = quantityOrAmount ?? 0
+        let resolvedCost = cost ?? 0
+        let resolvedLatestPrice = latestPrice ?? 0
+        let resolvedPreviousClose = previousCloseOrNetValue ?? 0
+
         if let asset {
             asset.type = type
             asset.name = trimmedName
             asset.code = trimmedCode
             asset.market = trimmedMarket
-            asset.quantityOrAmount = quantityOrAmount
-            asset.cost = type == .wealthProduct || type == .cash ? quantityOrAmount : cost
-            asset.latestPrice = latestPrice
-            asset.previousCloseOrNetValue = previousCloseOrNetValue
+            asset.quantityOrAmount = resolvedQuantity
+            asset.cost = type == .wealthProduct || type == .cash ? resolvedQuantity : resolvedCost
+            asset.latestPrice = resolvedLatestPrice
+            asset.previousCloseOrNetValue = resolvedPreviousClose
             asset.annualYield = annualYield
             asset.startDate = startDate
             asset.maturityDate = maturityDate
@@ -163,10 +177,10 @@ struct AssetEditorView: View {
                 name: trimmedName,
                 code: trimmedCode,
                 market: trimmedMarket,
-                quantityOrAmount: quantityOrAmount,
-                cost: type == .wealthProduct || type == .cash ? quantityOrAmount : cost,
-                latestPrice: latestPrice,
-                previousCloseOrNetValue: previousCloseOrNetValue,
+                quantityOrAmount: resolvedQuantity,
+                cost: type == .wealthProduct || type == .cash ? resolvedQuantity : resolvedCost,
+                latestPrice: resolvedLatestPrice,
+                previousCloseOrNetValue: resolvedPreviousClose,
                 annualYield: annualYield,
                 startDate: startDate,
                 maturityDate: maturityDate,
