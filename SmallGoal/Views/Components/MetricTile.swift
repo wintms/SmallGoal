@@ -4,12 +4,22 @@ struct MetricTile: View {
     let title: String
     let value: String
     let tint: Color
+    var subtitle: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(tint)
+                        .monospacedDigit()
+                }
+            }
             Text(value)
                 .font(.headline)
                 .foregroundStyle(tint)

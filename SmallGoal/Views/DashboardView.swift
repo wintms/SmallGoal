@@ -85,12 +85,14 @@ struct DashboardView: View {
                 MetricTile(
                     title: "今日盈亏",
                     value: FinanceFormatters.signedCurrency(snapshot.dailyProfitLoss),
-                    tint: FinanceFormatters.profitColor(snapshot.dailyProfitLoss)
+                    tint: FinanceFormatters.profitColor(snapshot.dailyProfitLoss),
+                    subtitle: dailyReturnRate()
                 )
                 MetricTile(
                     title: "累计盈亏",
                     value: FinanceFormatters.signedCurrency(snapshot.cumulativeProfitLoss),
-                    tint: FinanceFormatters.profitColor(snapshot.cumulativeProfitLoss)
+                    tint: FinanceFormatters.profitColor(snapshot.cumulativeProfitLoss),
+                    subtitle: cumulativeReturnRate()
                 )
             }
 
@@ -139,6 +141,22 @@ struct DashboardView: View {
             }
         }
         .sectionCard()
+    }
+
+    private func dailyReturnRate() -> String? {
+        let base = snapshot.totalValue - snapshot.dailyProfitLoss
+        guard base > 0 else { return nil }
+        let rate = snapshot.dailyProfitLoss / base
+        let prefix = rate > 0 ? "+" : ""
+        return prefix + rate.formatted(.percent.precision(.fractionLength(2)))
+    }
+
+    private func cumulativeReturnRate() -> String? {
+        let base = snapshot.totalValue - snapshot.cumulativeProfitLoss
+        guard base > 0 else { return nil }
+        let rate = snapshot.cumulativeProfitLoss / base
+        let prefix = rate > 0 ? "+" : ""
+        return prefix + rate.formatted(.percent.precision(.fractionLength(2)))
     }
 
     private func cnyRate(for asset: Asset) -> Double {
