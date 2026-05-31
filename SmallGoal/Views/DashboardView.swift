@@ -15,6 +15,22 @@ struct DashboardView: View {
             .sorted { abs($0.dailyProfitLoss) > abs($1.dailyProfitLoss) }
     }
 
+    private var dashboardQuoteState: QuoteRefreshState {
+        guard quoteRefreshService.configuration.canRefresh else {
+            if quoteRefreshService.configuration.mode == .mxData {
+                return .failure(
+                    message: "妙想 API Key 尚未配置",
+                    detail: "请到设置 > 行情保存妙想 API Key。"
+                )
+            }
+            return .failure(
+                message: "行情源尚未配置",
+                detail: "请到设置 > 行情填写真实行情接口地址。"
+            )
+        }
+        return quoteRefreshService.state
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -27,7 +43,7 @@ struct DashboardView: View {
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("投资账本")
+            .navigationTitle("小目标")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -39,7 +55,7 @@ struct DashboardView: View {
                             Label("刷新行情", systemImage: "arrow.clockwise")
                         }
                     }
-                    .disabled(quoteRefreshService.isRefreshing)
+                    .disabled(quoteRefreshService.isRefreshing || !quoteRefreshService.configuration.canRefresh)
                 }
             }
         }
@@ -78,9 +94,7 @@ struct DashboardView: View {
                 )
             }
 
-            Text(quoteRefreshService.lastMessage)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            QuoteStatusLine(state: dashboardQuoteState)
         }
         .padding(18)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -169,6 +183,59 @@ struct DashboardView: View {
             }
         }
         .sectionCard()
+    }
+}
+
+private struct QuoteStatusLine: View {
+    let state: QuoteRefreshState
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(state.message)
+                    .font(.footnote)
+                    .foregroundStyle(tint)
+                if let detail = state.detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var systemImage: String {
+        switch state {
+        case .idle:
+            "info.circle"
+        case .refreshing:
+            "arrow.clockwise"
+        case .success:
+            "checkmark.circle"
+        case .warning:
+            "exclamationmark.triangle"
+        case .failure:
+            "xmark.octagon"
+        }
+    }
+
+    private var tint: Color {
+        switch state {
+        case .idle:
+            .secondary
+        case .refreshing:
+            .blue
+        case .success:
+            .green
+        case .warning:
+            .orange
+        case .failure:
+            .red
+        }
     }
 }
 

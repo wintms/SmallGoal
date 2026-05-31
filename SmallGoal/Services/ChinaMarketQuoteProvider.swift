@@ -24,17 +24,33 @@ struct ChinaMarketQuoteProvider: QuoteProvider {
             components?.queryItems?.append(URLQueryItem(name: "apikey", value: apiKey))
         }
 
-        guard let url = components?.url else { throw QuoteProviderError.missingConfiguration }
+        guard let url = components?.url else { throw QuoteProviderError.invalidURL }
 
-        let (data, response) = try await session.data(from: url)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(from: url)
+        } catch {
+            throw QuoteProviderError.network(error.localizedDescription)
+        }
+
         guard let httpResponse = response as? HTTPURLResponse, 200..<300 ~= httpResponse.statusCode else {
+            if let httpResponse = response as? HTTPURLResponse {
+                throw QuoteProviderError.httpStatus(httpResponse.statusCode)
+            }
             throw QuoteProviderError.invalidResponse
         }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        let payload = try decoder.decode(QuoteResponse.self, from: data)
+        let payload: QuoteResponse
+        do {
+            payload = try decoder.decode(QuoteResponse.self, from: data)
+        } catch {
+            throw QuoteProviderError.decoding(error.localizedDescription)
+        }
+
         return payload.quotes.map {
             Quote(
                 code: $0.code,

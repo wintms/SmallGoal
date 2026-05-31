@@ -3,7 +3,7 @@ import SwiftUI
 
 @main
 struct SmallGoalApp: App {
-    @StateObject private var quoteRefreshService = QuoteRefreshService(provider: MockQuoteProvider())
+    @StateObject private var quoteRefreshService = QuoteRefreshService()
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([

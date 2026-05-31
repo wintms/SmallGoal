@@ -25,6 +25,11 @@
 		100000000000000000000116 /* FinanceFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000216 /* FinanceFormatters.swift */; };
 		100000000000000000000117 /* MetricTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000217 /* MetricTile.swift */; };
 		100000000000000000000118 /* PortfolioCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000218 /* PortfolioCalculatorTests.swift */; };
+		100000000000000000000119 /* KeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000222 /* KeychainCredentialStore.swift */; };
+		100000000000000000000120 /* QuoteProviderConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000223 /* QuoteProviderConfiguration.swift */; };
+		100000000000000000000121 /* QuoteSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000224 /* QuoteSettingsView.swift */; };
+		100000000000000000000122 /* QuoteConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000225 /* QuoteConfigurationTests.swift */; };
+		100000000000000000000123 /* MXDataQuoteProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000226 /* MXDataQuoteProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,11 +64,28 @@
 		100000000000000000000219 /* SmallGoal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmallGoal.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000220 /* SmallGoalTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmallGoalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000221 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		100000000000000000000222 /* KeychainCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainCredentialStore.swift; sourceTree = "<group>"; };
+		100000000000000000000223 /* QuoteProviderConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteProviderConfiguration.swift; sourceTree = "<group>"; };
+		100000000000000000000224 /* QuoteSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteSettingsView.swift; sourceTree = "<group>"; };
+		100000000000000000000225 /* QuoteConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteConfigurationTests.swift; sourceTree = "<group>"; };
+		100000000000000000000226 /* MXDataQuoteProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MXDataQuoteProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		100000000000000000000501 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-		100000000000000000000502 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		100000000000000000000501 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000502 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -105,6 +127,9 @@
 				100000000000000000000205 /* QuoteProvider.swift */,
 				100000000000000000000206 /* MockQuoteProvider.swift */,
 				100000000000000000000207 /* ChinaMarketQuoteProvider.swift */,
+				100000000000000000000226 /* MXDataQuoteProvider.swift */,
+				100000000000000000000222 /* KeychainCredentialStore.swift */,
+				100000000000000000000223 /* QuoteProviderConfiguration.swift */,
 				100000000000000000000208 /* QuoteRefreshService.swift */,
 			);
 			path = Services;
@@ -127,6 +152,7 @@
 				100000000000000000000213 /* AssetEditorView.swift */,
 				100000000000000000000214 /* AssetDetailView.swift */,
 				100000000000000000000215 /* SettingsView.swift */,
+				100000000000000000000224 /* QuoteSettingsView.swift */,
 				100000000000000000000607 /* Components */,
 			);
 			path = Views;
@@ -145,6 +171,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000218 /* PortfolioCalculatorTests.swift */,
+				100000000000000000000225 /* QuoteConfigurationTests.swift */,
 			);
 			path = SmallGoalTests;
 			sourceTree = "<group>";
@@ -169,8 +196,10 @@
 				100000000000000000000501 /* Frameworks */,
 				100000000000000000000802 /* Resources */,
 			);
-			buildRules = ();
-			dependencies = ();
+			buildRules = (
+			);
+			dependencies = (
+			);
 			name = SmallGoal;
 			productName = SmallGoal;
 			productReference = 100000000000000000000219 /* SmallGoal.app */;
@@ -184,7 +213,8 @@
 				100000000000000000000502 /* Frameworks */,
 				100000000000000000000804 /* Resources */,
 			);
-			buildRules = ();
+			buildRules = (
+			);
 			dependencies = (
 				100000000000000000000901 /* PBXTargetDependency */,
 			);
@@ -218,7 +248,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
-				zh-Hans,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = 100000000000000000000601;
@@ -233,8 +263,20 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		100000000000000000000802 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-		100000000000000000000804 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		100000000000000000000802 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000804 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -249,6 +291,9 @@
 				100000000000000000000105 /* QuoteProvider.swift in Sources */,
 				100000000000000000000106 /* MockQuoteProvider.swift in Sources */,
 				100000000000000000000107 /* ChinaMarketQuoteProvider.swift in Sources */,
+				100000000000000000000123 /* MXDataQuoteProvider.swift in Sources */,
+				100000000000000000000119 /* KeychainCredentialStore.swift in Sources */,
+				100000000000000000000120 /* QuoteProviderConfiguration.swift in Sources */,
 				100000000000000000000108 /* QuoteRefreshService.swift in Sources */,
 				100000000000000000000109 /* PortfolioViewModel.swift in Sources */,
 				100000000000000000000110 /* RootTabView.swift in Sources */,
@@ -257,6 +302,7 @@
 				100000000000000000000113 /* AssetEditorView.swift in Sources */,
 				100000000000000000000114 /* AssetDetailView.swift in Sources */,
 				100000000000000000000115 /* SettingsView.swift in Sources */,
+				100000000000000000000121 /* QuoteSettingsView.swift in Sources */,
 				100000000000000000000116 /* FinanceFormatters.swift in Sources */,
 				100000000000000000000117 /* MetricTile.swift in Sources */,
 			);
@@ -267,13 +313,18 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000118 /* PortfolioCalculatorTests.swift in Sources */,
+				100000000000000000000122 /* QuoteConfigurationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		100000000000000000000901 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = 100000000000000000000401 /* SmallGoal */; targetProxy = 100000000000000000000301 /* PBXContainerItemProxy */; };
+		100000000000000000000901 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 100000000000000000000401 /* SmallGoal */;
+			targetProxy = 100000000000000000000301 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -397,7 +448,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 69WXSFCA7B;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SmallGoal/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -422,7 +473,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 69WXSFCA7B;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SmallGoal/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -478,9 +529,33 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		100000000000000000000700 /* Build configuration list for PBXProject "SmallGoal" */ = {isa = XCConfigurationList; buildConfigurations = (100000000000000000001001 /* Debug */, 100000000000000000001002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		100000000000000000000701 /* Build configuration list for PBXNativeTarget "SmallGoal" */ = {isa = XCConfigurationList; buildConfigurations = (100000000000000000001003 /* Debug */, 100000000000000000001004 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		100000000000000000000702 /* Build configuration list for PBXNativeTarget "SmallGoalTests" */ = {isa = XCConfigurationList; buildConfigurations = (100000000000000000001005 /* Debug */, 100000000000000000001006 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		100000000000000000000700 /* Build configuration list for PBXProject "SmallGoal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000001001 /* Debug */,
+				100000000000000000001002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000701 /* Build configuration list for PBXNativeTarget "SmallGoal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000001003 /* Debug */,
+				100000000000000000001004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000702 /* Build configuration list for PBXNativeTarget "SmallGoalTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000001005 /* Debug */,
+				100000000000000000001006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 	};
 	rootObject = 100000000000000000000001 /* Project object */;

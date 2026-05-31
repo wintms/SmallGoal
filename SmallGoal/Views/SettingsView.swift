@@ -9,8 +9,27 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section("行情") {
-                    LabeledContent("当前模式", value: "模拟行情")
+                    NavigationLink {
+                        QuoteSettingsView()
+                    } label: {
+                        Label("行情设置", systemImage: "antenna.radiowaves.left.and.right")
+                    }
+                    LabeledContent("当前模式", value: quoteRefreshService.configuration.mode.title)
+                    if quoteRefreshService.configuration.mode == .chinaMarket {
+                        LabeledContent(
+                            "接口",
+                            value: quoteRefreshService.configuration.endpointURLString.isEmpty ? "未配置" : quoteRefreshService.configuration.endpointURLString
+                        )
+                    }
+                    if quoteRefreshService.configuration.mode == .chinaMarket || quoteRefreshService.configuration.mode == .mxData {
+                        LabeledContent("API Key", value: quoteRefreshService.configuration.hasAPIKey ? "已保存" : "未保存")
+                    }
                     LabeledContent("状态", value: quoteRefreshService.lastMessage)
+                    if let detail = quoteRefreshService.state.detail {
+                        Text(detail)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     if let lastRefreshAt = quoteRefreshService.lastRefreshAt {
                         LabeledContent("上次更新", value: lastRefreshAt.formatted(date: .abbreviated, time: .shortened))
                     }

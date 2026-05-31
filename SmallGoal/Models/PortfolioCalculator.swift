@@ -2,14 +2,14 @@ import Foundation
 
 enum PortfolioCalculator {
     static func snapshot(for assets: [Asset], on date: Date = .now) -> PortfolioSnapshot {
-        let totalValue = assets.reduce(0) { $0 + currentValue(for: $1, on: date) }
-        let dailyProfitLoss = assets.reduce(0) { $0 + dailyProfitLoss(for: $1, on: date) }
-        let cumulativeProfitLoss = assets.reduce(0) { $0 + cumulativeProfitLoss(for: $1, on: date) }
+        let totalValue = assets.reduce(0.0) { $0 + Self.currentValue(for: $1, on: date) }
+        let dailyProfitLoss = assets.reduce(0.0) { $0 + Self.dailyProfitLoss(for: $1, on: date) }
+        let cumulativeProfitLoss = assets.reduce(0.0) { $0 + Self.cumulativeProfitLoss(for: $1, on: date) }
 
         let allocations = AssetType.allCases.map { type in
             let value = assets
                 .filter { $0.type == type }
-                .reduce(0) { $0 + currentValue(for: $1, on: date) }
+                .reduce(0.0) { $0 + Self.currentValue(for: $1, on: date) }
             return AssetAllocation(
                 type: type,
                 value: value,

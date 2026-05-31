@@ -24,5 +24,5 @@ struct RootTabView: View {
 #Preview {
     RootTabView()
         .modelContainer(for: Asset.self, inMemory: true)
-        .environmentObject(QuoteRefreshService(provider: MockQuoteProvider()))
+        .environmentObject(QuoteRefreshService())
 }
