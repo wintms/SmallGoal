@@ -2,6 +2,45 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+enum Market: String, CaseIterable, Identifiable, Codable {
+    case cn = "CN"
+    case hk = "HK"
+
+    var id: String { rawValue }
+
+    var title: String { rawValue }
+
+    var currency: String {
+        switch self {
+        case .cn: "CNY"
+        case .hk: "HKD"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .cn: "¥"
+        case .hk: "HK$"
+        }
+    }
+
+    var needsCNYConversion: Bool { self != .cn }
+
+    var rateDefaultsKey: String { "quote.provider.\(rawValue.lowercased())Rate" }
+
+    static func rate(for market: Market) -> Double {
+        let rate = UserDefaults.standard.double(forKey: market.rateDefaultsKey)
+        if UserDefaults.standard.object(forKey: market.rateDefaultsKey) == nil {
+            return market == .hk ? 0.92 : 1.0
+        }
+        return rate > 0 ? rate : 1.0
+    }
+
+    static func saveRate(_ rate: Double, for market: Market) {
+        UserDefaults.standard.set(rate, forKey: market.rateDefaultsKey)
+    }
+}
+
 enum AssetType: String, CaseIterable, Identifiable, Codable {
     case stock
     case fund
@@ -109,10 +148,12 @@ final class Asset {
         type == .stock || type == .fund
     }
 
+    var resolvedMarket: Market { Market(rawValue: market) ?? .cn }
+
     var displayCurrency: String {
         switch type {
         case .stock:
-            market == "HK" ? "HKD" : "CNY"
+            resolvedMarket.currency
         case .fund:
             "CNY"
         case .wealthProduct, .cash:
@@ -121,7 +162,10 @@ final class Asset {
     }
 
     var currencySymbol: String {
-        if type == .stock && market == "HK" { return "HK$" }
-        return "¥"
+        type == .stock ? resolvedMarket.symbol : "¥"
+    }
+
+    var needsCNYConversion: Bool {
+        type == .stock && resolvedMarket.needsCNYConversion
     }
 }

@@ -142,10 +142,7 @@ struct DashboardView: View {
     }
 
     private func cnyRate(for asset: Asset) -> Double {
-        guard asset.market == "HK" else { return 1.0 }
-        if UserDefaults.standard.object(forKey: "quote.provider.hkdExchangeRate") == nil { return 0.92 }
-        let rate = UserDefaults.standard.double(forKey: "quote.provider.hkdExchangeRate")
-        return rate > 0 ? rate : 0.92
+        asset.needsCNYConversion ? Market.rate(for: asset.resolvedMarket) : 1.0
     }
 
     private var moversSection: some View {

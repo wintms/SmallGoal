@@ -58,8 +58,9 @@ struct AssetEditorView: View {
                     }
                     if type == .stock {
                         Picker("市场", selection: $market) {
-                            Text("CN").tag("CN")
-                            Text("HK").tag("HK")
+                            ForEach(Market.allCases) { m in
+                                Text(m.title).tag(m.rawValue)
+                            }
                         }
                     }
                     if type == .cash {

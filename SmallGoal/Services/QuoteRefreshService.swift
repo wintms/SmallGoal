@@ -97,6 +97,13 @@ final class QuoteRefreshService: ObservableObject {
             return
         }
 
+        for market in Market.allCases where market.needsCNYConversion {
+            if let rate = await ExchangeRateService.fetchRate(for: market) {
+                Market.saveRate(rate, for: market)
+                configuration = configurationStore.configuration
+            }
+        }
+
         let quoteBackedAssets = assets.filter { $0.isQuoteBacked && !$0.code.isEmpty }
         let codes = Array(Set(quoteBackedAssets.map(\.code))).sorted()
 
@@ -231,5 +238,17 @@ final class QuoteRefreshService: ObservableObject {
         case .mxData:
             return MXDataQuoteProvider(apiKey: apiKey)
         }
+    }
+}
+
+enum ExchangeRateService {
+    static func fetchRate(for market: Market) async -> Double? {
+        guard let url = URL(string: "https://open.er-api.com/v6/latest/\(market.currency)"),
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rates = json["rates"] as? [String: Any],
+              let cny = rates["CNY"] as? Double,
+              cny > 0 else { return nil }
+        return cny
     }
 }

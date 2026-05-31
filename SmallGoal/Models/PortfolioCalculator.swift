@@ -83,12 +83,6 @@ enum PortfolioCalculator {
     }
 
     private static func cnyRate(for asset: Asset) -> Double {
-        asset.market == "HK" ? hkdExchangeRate() : 1.0
-    }
-
-    private static func hkdExchangeRate() -> Double {
-        if UserDefaults.standard.object(forKey: "quote.provider.hkdExchangeRate") == nil { return 0.92 }
-        let rate = UserDefaults.standard.double(forKey: "quote.provider.hkdExchangeRate")
-        return rate > 0 ? rate : 0.92
+        asset.needsCNYConversion ? Market.rate(for: asset.resolvedMarket) : 1.0
     }
 }

@@ -8,7 +8,7 @@ struct QuoteSettingsView: View {
     @State private var mode: QuoteProviderMode = .mock
     @State private var endpointURLString = ""
     @State private var apiKeyInput = ""
-    @State private var hkdRate: Double = 0.92
+    @State private var marketRates: [Market: Double] = [:]
     @State private var localMessage: String?
 
     var body: some View {
@@ -45,21 +45,26 @@ struct QuoteSettingsView: View {
             }
 
             Section {
-                    HStack {
-                        Text("HKD → CNY")
-                        Spacer()
-                        TextField("0.92", value: $hkdRate, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(width: 100)
-                    }
-                    .onChange(of: hkdRate) { _, newValue in
-                        quoteRefreshService.updateHKDExchangeRate(newValue)
+                    ForEach(Market.allCases.filter(\.needsCNYConversion)) { market in
+                        HStack {
+                            Text("\(market.currency) → CNY")
+                            Spacer()
+                            TextField("1.0", value: Binding(
+                                get: { marketRates[market] ?? Market.rate(for: market) },
+                                set: { newValue in
+                                    marketRates[market] = newValue
+                                    Market.saveRate(newValue, for: market)
+                                }
+                            ), format: .number)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 100)
+                        }
                     }
                 } header: {
                     Text("汇率")
                 } footer: {
-                    Text("港股行情价格将乘以该汇率转换为人民币。")
+                    Text("外币行情价格将乘以对应汇率转换为人民币，用于首页总览统计。刷新行情时自动更新。")
                 }
 
                 Section("状态") {
@@ -114,7 +119,9 @@ struct QuoteSettingsView: View {
     private func loadConfiguration() {
         mode = quoteRefreshService.configuration.mode
         endpointURLString = quoteRefreshService.configuration.endpointURLString
-        hkdRate = quoteRefreshService.configuration.hkdExchangeRate
+        for market in Market.allCases where market.needsCNYConversion {
+            marketRates[market] = Market.rate(for: market)
+        }
     }
 
     private func saveConfiguration() {
