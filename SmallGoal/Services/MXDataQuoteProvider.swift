@@ -89,7 +89,7 @@ struct MXDataQuoteProvider: QuoteProvider {
             throw QuoteProviderError.invalidPayload("妙想接口未返回最新价\(suffix)")
         }
 
-        let changeAmountFromField = firstDouble(in: fields, matching: ["涨跌额", "涨跌", "涨跌值", "涨跌金额", "涨跌价"])
+        let changeAmountFromField = firstDouble(in: fields, matching: ["涨跌额", "涨跌", "涨跌值", "涨跌金额", "涨跌价", "区间单位净值增长", "净值增长"])
         let previousCloseFromField = firstDouble(in: fields, matching: ["昨收", "昨收价", "前收盘", "前收", "昨日收盘价"])
 
         let changeAmount: Double
@@ -109,7 +109,7 @@ struct MXDataQuoteProvider: QuoteProvider {
             previousClose = latestPrice
         }
 
-        let changePercent = firstPercent(in: fields, matching: ["涨跌幅", "涨幅", "跌幅", "涨跌比例"])
+        let changePercent = firstPercent(in: fields, matching: ["涨跌幅", "涨幅", "跌幅", "涨跌比例", "区间单位净值增长率", "净值增长率"])
             ?? (previousClose == 0 ? 0 : changeAmount / previousClose)
         let quoteTime = firstDate(in: fields, matching: ["date", "日期", "时间", "更新时间"]) ?? .now
 
@@ -142,7 +142,12 @@ struct MXDataQuoteProvider: QuoteProvider {
 
         if let rawTable = dto["rawTable"] as? [String: Any] {
             for (key, value) in rawTable {
-                table[key] = value
+                let tableValue = table[key]
+                let values = tableValue as? [Any] ?? [tableValue as Any]
+                let hasPercentUnit = values.contains { flatten($0).contains("%") }
+                if !hasPercentUnit {
+                    table[key] = value
+                }
             }
         }
 
@@ -225,7 +230,7 @@ struct MXDataQuoteProvider: QuoteProvider {
     }
 
     private static var latestPriceCandidates: [String] {
-        ["最新价", "最新价格", "现价", "当前价", "最新", "价格", "收盘价", "收盘"]
+        ["最新价", "最新价格", "现价", "当前价", "最新", "价格", "收盘价", "收盘", "区间最高单位净值", "最高单位净值", "最新净值"]
     }
 
     private static func headersLookLikeIndicators(_ headers: [Any]) -> Bool {

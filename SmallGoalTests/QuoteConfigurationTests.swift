@@ -257,7 +257,84 @@ final class QuoteConfigurationTests: XCTestCase {
         XCTAssertEqual(quote.changePercent, 0.0108, accuracy: 0.0001)
     }
 
-    func testMXDataMissingLatestPriceShowsAvailableFields() throws {
+    func testMXDataPayloadParsesFundFields() throws {
+	        let payload: [String: Any] = [
+	            "status": 0,
+	            "data": [
+	                "data": [
+	                    "searchDataResultDTO": [
+	                        "entityTagDTOList": [
+	                            [
+	                                "fullName": "富国中证消费50ETF联接A",
+	                                "secuCode": "008975"
+	                            ]
+	                        ],
+	                        "dataTableDTOList": [
+	                            [
+	                                "table": [
+	                                    "headName": ["2026-05-29"],
+	                                    "1": ["1.126元"],
+	                                    "2": ["0.03元"],
+	                                    "3": ["2.738%"]
+	                                ],
+	                                "nameMap": [
+	                                    "1": "区间最高单位净值",
+	                                    "2": "区间单位净值增长",
+	                                    "3": "区间单位净值增长率"
+	                                ]
+	                            ]
+	                        ]
+	                    ]
+	                ]
+	            ]
+	        ]
+
+	        let quote = try MXDataQuoteProvider.parseQuote(from: payload, fallbackCode: "008975")
+
+	        XCTAssertEqual(quote.code, "008975")
+	        XCTAssertEqual(quote.name, "富国中证消费50ETF联接A")
+	        XCTAssertEqual(quote.latestPrice, 1.126, accuracy: 0.001)
+	        XCTAssertEqual(quote.changeAmount, 0.03, accuracy: 0.001)
+	        XCTAssertEqual(quote.previousClose, 1.096, accuracy: 0.001)
+	        XCTAssertEqual(quote.changePercent, 0.02738, accuracy: 0.0001)
+	    }
+
+	    func testMXDataPayloadSkipsRawTableForPercentFields() throws {
+	        let payload: [String: Any] = [
+	            "status": 0,
+	            "data": [
+	                "data": [
+	                    "searchDataResultDTO": [
+	                        "dataTableDTOList": [
+	                            [
+	                                "table": [
+	                                    "headName": ["2026-05-29"],
+	                                    "1": ["1.126元"],
+	                                    "2": ["2.738%"]
+	                                ],
+	                                "rawTable": [
+	                                    "headName": ["2026-05-29"],
+	                                    "1": ["1.1257"],
+	                                    "2": ["2.737975723281900"]
+	                                ],
+	                                "nameMap": [
+	                                    "1": "区间最高单位净值",
+	                                    "2": "区间单位净值增长率"
+	                                ]
+	                            ]
+	                        ]
+	                    ]
+	                ]
+	            ]
+	        ]
+
+	        let quote = try MXDataQuoteProvider.parseQuote(from: payload, fallbackCode: "008975")
+
+	        XCTAssertEqual(quote.latestPrice, 1.1257, accuracy: 0.0001)
+	        XCTAssertEqual(quote.changePercent, 0.02738, accuracy: 0.0001)
+	    }
+
+	    func testMXDataMissingLatestPriceShowsAvailableFields() throws {
         let payload: [String: Any] = [
             "status": 0,
             "data": [
