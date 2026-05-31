@@ -212,7 +212,7 @@ private struct QuoteStatusLine: View {
     let state: QuoteRefreshState
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             Image(systemName: systemImage)
                 .foregroundStyle(tint)
                 .frame(width: 18)
