@@ -68,7 +68,7 @@ struct DashboardView: View {
                     Text("总资产")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Text(FinanceFormatters.currency(snapshot.totalValue))
+                    Text(snapshot.totalValue.formatted(.currency(code: "CNY").precision(.fractionLength(1))))
                         .font(.system(.largeTitle, design: .rounded, weight: .semibold))
                         .monospacedDigit()
                         .minimumScaleFactor(0.7)
