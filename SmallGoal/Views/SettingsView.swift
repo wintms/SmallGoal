@@ -1,9 +1,61 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
+
+struct PortfolioExport: Codable {
+    var version: Int
+    var exportedAt: Date
+    var assets: [AssetSnapshot]
+}
+
+struct AssetSnapshot: Codable {
+    var type: String
+    var name: String
+    var code: String
+    var market: String
+    var quantityOrAmount: Double
+    var cost: Double
+    var latestPrice: Double
+    var previousCloseOrNetValue: Double
+    var annualYield: Double
+    var startDate: Date
+    var maturityDate: Date
+    var currency: String
+    var note: String
+}
+
+extension PortfolioExport {
+    static func from(_ assets: [Asset]) -> PortfolioExport {
+        PortfolioExport(
+            version: 1,
+            exportedAt: .now,
+            assets: assets.map { asset in
+                AssetSnapshot(
+                    type: asset.typeRaw,
+                    name: asset.name,
+                    code: asset.code,
+                    market: asset.market,
+                    quantityOrAmount: asset.quantityOrAmount,
+                    cost: asset.cost,
+                    latestPrice: asset.latestPrice,
+                    previousCloseOrNetValue: asset.previousCloseOrNetValue,
+                    annualYield: asset.annualYield,
+                    startDate: asset.startDate,
+                    maturityDate: asset.maturityDate,
+                    currency: asset.currency,
+                    note: asset.note
+                )
+            }
+        )
+    }
+}
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
     @Query private var assets: [Asset]
+    @State private var showingImporter = false
+    @State private var importMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -15,21 +67,7 @@ struct SettingsView: View {
                         Label("行情设置", systemImage: "antenna.radiowaves.left.and.right")
                     }
                     LabeledContent("当前模式", value: quoteRefreshService.configuration.mode.title)
-                    if quoteRefreshService.configuration.mode == .chinaMarket {
-                        LabeledContent(
-                            "接口",
-                            value: quoteRefreshService.configuration.endpointURLString.isEmpty ? "未配置" : quoteRefreshService.configuration.endpointURLString
-                        )
-                    }
-                    if quoteRefreshService.configuration.mode == .chinaMarket || quoteRefreshService.configuration.mode == .mxData {
-                        LabeledContent("API Key", value: quoteRefreshService.configuration.hasAPIKey ? "已保存" : "未保存")
-                    }
                     LabeledContent("状态", value: quoteRefreshService.lastMessage)
-                    if let detail = quoteRefreshService.state.detail {
-                        Text(detail)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
                     if let lastRefreshAt = quoteRefreshService.lastRefreshAt {
                         LabeledContent("上次更新", value: lastRefreshAt.formatted(date: .abbreviated, time: .shortened))
                     }
@@ -43,8 +81,21 @@ struct SettingsView: View {
 
                 Section("数据") {
                     LabeledContent("资产数量", value: "\(assets.count)")
-                    LabeledContent("存储方式", value: "本地")
-                    LabeledContent("导出", value: "后续版本")
+                    if let exportURL = exportJSON() {
+                        ShareLink(item: exportURL) {
+                            Label("导出", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                    Button {
+                        showingImporter = true
+                    } label: {
+                        Label("导入", systemImage: "square.and.arrow.down")
+                    }
+                    if let importMessage {
+                        Text(importMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("关于") {
@@ -54,6 +105,58 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("设置")
+            .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
+                importAssets(from: result)
+            }
+        }
+    }
+
+    private func exportJSON() -> URL? {
+        guard !assets.isEmpty else { return nil }
+
+        let export = PortfolioExport.from(assets)
+        guard let data = try? JSONEncoder().encode(export) else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        let fileName = "小目标-\(formatter.string(from: .now)).json"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try? data.write(to: tempURL)
+        return tempURL
+    }
+
+    private func importAssets(from result: Result<URL, Error>) {
+        guard case .success(let url) = result else { return }
+        guard url.startAccessingSecurityScopedResource() else { return }
+        defer { url.stopAccessingSecurityScopedResource() }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let export = try JSONDecoder().decode(PortfolioExport.self, from: data)
+
+            var inserted = 0
+            for snapshot in export.assets {
+                let asset = Asset(
+                    type: AssetType(rawValue: snapshot.type) ?? .stock,
+                    name: snapshot.name,
+                    code: snapshot.code,
+                    market: snapshot.market,
+                    quantityOrAmount: snapshot.quantityOrAmount,
+                    cost: snapshot.cost,
+                    latestPrice: snapshot.latestPrice,
+                    previousCloseOrNetValue: snapshot.previousCloseOrNetValue,
+                    annualYield: snapshot.annualYield,
+                    startDate: snapshot.startDate,
+                    maturityDate: snapshot.maturityDate,
+                    currency: snapshot.currency,
+                    note: snapshot.note
+                )
+                modelContext.insert(asset)
+                inserted += 1
+            }
+            importMessage = "已导入 \(inserted) 项资产"
+        } catch {
+            importMessage = "导入失败：\(error.localizedDescription)"
         }
     }
 }
