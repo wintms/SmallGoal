@@ -15,12 +15,27 @@ struct MXDataQuoteProvider: QuoteProvider {
         self.session = session
     }
 
+    private static let maxCodesPerRequest = 5
+
     func fetchQuotes(for codes: [String]) async throws -> [Quote] {
         guard !codes.isEmpty else { throw QuoteProviderError.emptyCodes }
         guard let apiKey, !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw QuoteProviderError.missingAPIKey
         }
 
+        let batches = stride(from: 0, to: codes.count, by: Self.maxCodesPerRequest).map {
+            Array(codes[$0..<min($0 + Self.maxCodesPerRequest, codes.count)])
+        }
+
+        var allQuotes: [Quote] = []
+        for batch in batches {
+            let quotes = try await fetchBatch(codes: batch, apiKey: apiKey)
+            allQuotes.append(contentsOf: quotes)
+        }
+        return allQuotes
+    }
+
+    private func fetchBatch(codes: [String], apiKey: String) async throws -> [Quote] {
         let codesString = codes.joined(separator: " ")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -106,20 +121,31 @@ struct MXDataQuoteProvider: QuoteProvider {
             }
         }
 
+        let rawDTOCodes = dtos.compactMap { stringValue($0["code"]) }
+        print("[MXData] API返回DTO代码: \(rawDTOCodes)")
+
         var dtosByCode: [String: [[String: Any]]] = [:]
         for dto in dtos {
             guard let dtoCode = stringValue(dto["code"]),
-                  let normalized = normalizedCode(dtoCode) else { continue }
+                  let normalized = normalizedCode(dtoCode) else {
+                print("[MXData] ⚠️ 跳过DTO, code=\(stringValue(dto["code"]) ?? "nil")")
+                continue
+            }
             dtosByCode[normalized, default: []].append(dto)
         }
+        print("[MXData] 分组后代码: \(Array(dtosByCode.keys).sorted())")
 
         var quotes: [Quote] = []
         for (code, groupedDTOs) in dtosByCode {
             let rows = groupedDTOs.flatMap { tableRows(from: $0) }
             guard !rows.isEmpty else { continue }
             let entity = entityByCode[code] ?? (code, code)
-            if let quote = try? quoteFrom(fields: mergedFields(from: rows), code: entity.code, name: entity.name) {
+            do {
+                let quote = try quoteFrom(fields: mergedFields(from: rows), code: entity.code, name: entity.name)
                 quotes.append(quote)
+            } catch {
+                print("[MXData] ⚠️ 解析失败 code=\(code): \(error.localizedDescription)")
+                continue
             }
         }
 
@@ -403,7 +429,7 @@ struct MXDataQuoteProvider: QuoteProvider {
 
     private static func normalizedCode(_ rawCode: String) -> String? {
         let digits = rawCode.filter(\.isNumber)
-        guard digits.count >= 5 else { return nil }
+        guard !digits.isEmpty else { return nil }
         return String(digits.suffix(6))
     }
 }

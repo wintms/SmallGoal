@@ -141,8 +141,18 @@ final class QuoteRefreshService: ObservableObject {
             let quotes = try await provider.fetchQuotes(for: codes)
             let quoteByCode = Dictionary(uniqueKeysWithValues: quotes.map { ($0.code, $0) })
 
+            let normalizedRequestCodes = codes.map { normalizedCode($0) }
+            print("[QuoteRefresh] 请求代码: \(codes)")
+            print("[QuoteRefresh] 规范化后: \(normalizedRequestCodes)")
+            print("[QuoteRefresh] 返回Quote代码: \(quotes.map(\.code))")
+            let missingNormalized = normalizedRequestCodes.filter { quoteByCode[$0] == nil }
+            if !missingNormalized.isEmpty {
+                print("[QuoteRefresh] ❌ 缺失代码: \(missingNormalized)")
+            }
+
             for asset in assets {
-                guard let quote = quoteByCode[asset.code] else { continue }
+                let normalizedAssetCode = normalizedCode(asset.code)
+                guard let quote = quoteByCode[normalizedAssetCode] else { continue }
                 asset.name = asset.name.isEmpty ? quote.name : asset.name
                 asset.latestPrice = quote.latestPrice
                 asset.previousCloseOrNetValue = quote.previousClose
@@ -151,7 +161,8 @@ final class QuoteRefreshService: ObservableObject {
             }
 
             let date = Date.now
-            let missingCodes = codes.filter { quoteByCode[$0] == nil }
+            let normalizedCodes = codes.map { normalizedCode($0) }
+            let missingCodes = zip(codes, normalizedCodes).filter { quoteByCode[$1] == nil }.map(\.0)
             if missingCodes.isEmpty {
                 lastSuccessfulRefreshAt = date
                 state = .success(message: "行情已更新 \(quotes.count) 项", date: date)
@@ -171,6 +182,12 @@ final class QuoteRefreshService: ObservableObject {
                 detail: error.localizedDescription
             )
         }
+    }
+
+    private func normalizedCode(_ raw: String) -> String {
+        let digits = raw.filter(\.isNumber)
+        guard !digits.isEmpty else { return raw }
+        return String(digits.suffix(6))
     }
 
     private func makeProvider() throws -> QuoteProvider {

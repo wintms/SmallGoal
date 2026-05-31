@@ -11,7 +11,7 @@ enum QuoteProviderMode: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .mock: "模拟行情"
         case .chinaMarket: "真实行情"
-        case .mxData: "妙想直连"
+        case .mxData: "东方财富妙想数据"
         }
     }
 
@@ -22,7 +22,7 @@ enum QuoteProviderMode: String, CaseIterable, Identifiable, Codable {
         case .chinaMarket:
             "使用通用行情代理接口"
         case .mxData:
-            "iOS 直接请求东方财富妙想 API"
+            "使用东方财富妙想数据"
         }
     }
 }
