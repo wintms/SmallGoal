@@ -86,7 +86,7 @@ struct DashboardView: View {
                 Spacer()
                 Image(systemName: snapshot.dailyProfitLoss >= 0 ? "arrow.up.right" : "arrow.down.right")
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(FinanceFormatters.profitColor(snapshot.dailyProfitLoss))
+                    .foregroundStyle(isTotalHidden ? .secondary : FinanceFormatters.profitColor(snapshot.dailyProfitLoss))
                     .frame(width: 44, height: 44)
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
@@ -94,15 +94,15 @@ struct DashboardView: View {
             HStack(spacing: 12) {
                 MetricTile(
                     title: "今日盈亏",
-                    value: FinanceFormatters.signedCurrency(snapshot.dailyProfitLoss),
-                    tint: FinanceFormatters.profitColor(snapshot.dailyProfitLoss),
-                    subtitle: dailyReturnRate()
+                    value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(snapshot.dailyProfitLoss),
+                    tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(snapshot.dailyProfitLoss),
+                    subtitle: isTotalHidden ? nil : dailyReturnRate()
                 )
                 MetricTile(
                     title: "累计盈亏",
-                    value: FinanceFormatters.signedCurrency(snapshot.cumulativeProfitLoss),
-                    tint: FinanceFormatters.profitColor(snapshot.cumulativeProfitLoss),
-                    subtitle: cumulativeReturnRate()
+                    value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(snapshot.cumulativeProfitLoss),
+                    tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(snapshot.cumulativeProfitLoss),
+                    subtitle: isTotalHidden ? nil : cumulativeReturnRate()
                 )
             }
 
@@ -122,7 +122,7 @@ struct DashboardView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(snapshot.assetAllocation.filter { $0.value > 0 }) { allocation in
-                        AllocationRow(allocation: allocation)
+                        AllocationRow(allocation: allocation, hidden: isTotalHidden)
                     }
                 }
             }
@@ -286,6 +286,7 @@ private struct SectionTitle: View {
 
 private struct AllocationRow: View {
     let allocation: AssetAllocation
+    var hidden = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -299,7 +300,7 @@ private struct AllocationRow: View {
             }
             ProgressView(value: allocation.percent)
                 .tint(allocation.type.accentColor)
-            Text(FinanceFormatters.currency(allocation.value))
+            Text(hidden ? "****" : FinanceFormatters.currency(allocation.value))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
