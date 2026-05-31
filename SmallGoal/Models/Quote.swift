@@ -36,7 +36,14 @@ struct AssetPerformance: Identifiable {
     let cumulativeProfitLoss: Double
 
     var dailyProfitLossPercent: Double {
-        guard costValue > 0 else { return 0 }
-        return dailyProfitLoss / costValue
+        switch asset.type {
+        case .stock, .fund:
+            let base = asset.quantityOrAmount * asset.previousCloseOrNetValue
+            guard base > 0 else { return 0 }
+            return dailyProfitLoss / base
+        case .wealthProduct, .cash:
+            guard costValue > 0 else { return 0 }
+            return dailyProfitLoss / costValue
+        }
     }
 }
