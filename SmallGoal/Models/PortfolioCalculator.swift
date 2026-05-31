@@ -2,14 +2,14 @@ import Foundation
 
 enum PortfolioCalculator {
     static func snapshot(for assets: [Asset], on date: Date = .now) -> PortfolioSnapshot {
-        let totalValue = assets.reduce(0.0) { $0 + Self.currentValue(for: $1, on: date) }
-        let dailyProfitLoss = assets.reduce(0.0) { $0 + Self.dailyProfitLoss(for: $1, on: date) }
-        let cumulativeProfitLoss = assets.reduce(0.0) { $0 + Self.cumulativeProfitLoss(for: $1, on: date) }
+        let totalValue = assets.reduce(0.0) { $0 + Self.currentValue(for: $1, on: date) * cnyRate(for: $1) }
+        let dailyProfitLoss = assets.reduce(0.0) { $0 + Self.dailyProfitLoss(for: $1, on: date) * cnyRate(for: $1) }
+        let cumulativeProfitLoss = assets.reduce(0.0) { $0 + Self.cumulativeProfitLoss(for: $1, on: date) * cnyRate(for: $1) }
 
         let allocations = AssetType.allCases.map { type in
             let value = assets
                 .filter { $0.type == type }
-                .reduce(0.0) { $0 + Self.currentValue(for: $1, on: date) }
+                .reduce(0.0) { $0 + Self.currentValue(for: $1, on: date) * cnyRate(for: $1) }
             return AssetAllocation(
                 type: type,
                 value: value,
@@ -50,17 +50,10 @@ enum PortfolioCalculator {
         }
     }
 
-    private static func hkdExchangeRate() -> Double {
-        if UserDefaults.standard.object(forKey: "quote.provider.hkdExchangeRate") == nil { return 0.92 }
-        let rate = UserDefaults.standard.double(forKey: "quote.provider.hkdExchangeRate")
-        return rate > 0 ? rate : 0.92
-    }
-
     static func costValue(for asset: Asset) -> Double {
         switch asset.type {
         case .stock, .fund:
-            let rate = asset.market == "HK" ? hkdExchangeRate() : 1.0
-            return asset.quantityOrAmount * asset.cost * rate
+            return asset.quantityOrAmount * asset.cost
         case .wealthProduct, .cash:
             return asset.quantityOrAmount
         }
@@ -87,5 +80,15 @@ enum PortfolioCalculator {
         let effectiveEnd = min(date, asset.maturityDate)
         let days = max(0, Calendar.current.dateComponents([.day], from: asset.startDate, to: effectiveEnd).day ?? 0)
         return asset.quantityOrAmount * asset.annualYield * Double(days) / 365
+    }
+
+    private static func cnyRate(for asset: Asset) -> Double {
+        asset.market == "HK" ? hkdExchangeRate() : 1.0
+    }
+
+    private static func hkdExchangeRate() -> Double {
+        if UserDefaults.standard.object(forKey: "quote.provider.hkdExchangeRate") == nil { return 0.92 }
+        let rate = UserDefaults.standard.double(forKey: "quote.provider.hkdExchangeRate")
+        return rate > 0 ? rate : 0.92
     }
 }

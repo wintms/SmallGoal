@@ -18,6 +18,18 @@ enum FinanceFormatters {
         value.formatted(.number.precision(.fractionLength(4)))
     }
 
+    static func valueWithSymbol(_ value: Double, symbol: String) -> String {
+        symbol + decimal(value)
+    }
+
+    static func signedValueWithSymbol(_ value: Double, symbol: String) -> String {
+        let sign: String
+        if value > 0 { sign = "+" }
+        else if value < 0 { sign = "-" }
+        else { sign = "" }
+        return sign + symbol + decimal(abs(value))
+    }
+
     static func profitColor(_ value: Double) -> Color {
         if value > 0 { return .red }
         if value < 0 { return .green }

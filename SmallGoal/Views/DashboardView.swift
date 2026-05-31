@@ -125,7 +125,7 @@ struct DashboardView: View {
             ForEach(AssetType.allCases) { type in
                 let contribution = performances
                     .filter { $0.asset.type == type }
-                    .reduce(0) { $0 + $1.dailyProfitLoss }
+                    .reduce(0) { $0 + $1.dailyProfitLoss * cnyRate(for: $1.asset) }
 
                 HStack {
                     Label(type.title, systemImage: type.systemImage)
@@ -139,6 +139,13 @@ struct DashboardView: View {
             }
         }
         .sectionCard()
+    }
+
+    private func cnyRate(for asset: Asset) -> Double {
+        guard asset.market == "HK" else { return 1.0 }
+        if UserDefaults.standard.object(forKey: "quote.provider.hkdExchangeRate") == nil { return 0.92 }
+        let rate = UserDefaults.standard.double(forKey: "quote.provider.hkdExchangeRate")
+        return rate > 0 ? rate : 0.92
     }
 
     private var moversSection: some View {
@@ -169,9 +176,9 @@ struct DashboardView: View {
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 3) {
-                                Text(FinanceFormatters.signedCurrency(item.dailyProfitLoss))
+                                Text(FinanceFormatters.signedValueWithSymbol(item.dailyProfitLoss, symbol: item.asset.currencySymbol))
                                     .foregroundStyle(FinanceFormatters.profitColor(item.dailyProfitLoss))
-                                Text(FinanceFormatters.currency(item.currentValue))
+                                Text(FinanceFormatters.valueWithSymbol(item.currentValue, symbol: item.asset.currencySymbol))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

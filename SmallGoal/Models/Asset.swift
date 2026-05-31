@@ -119,4 +119,9 @@ final class Asset {
             currency.isEmpty ? "CNY" : currency
         }
     }
+
+    var currencySymbol: String {
+        if type == .stock && market == "HK" { return "HK$" }
+        return "¥"
+    }
 }

@@ -91,9 +91,9 @@ private struct HoldingRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(FinanceFormatters.currency(performance.currentValue))
+                Text(FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol))
                     .font(.subheadline.weight(.semibold))
-                Text(FinanceFormatters.signedCurrency(performance.dailyProfitLoss))
+                Text(FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol))
                     .font(.caption)
                     .foregroundStyle(FinanceFormatters.profitColor(performance.dailyProfitLoss))
             }

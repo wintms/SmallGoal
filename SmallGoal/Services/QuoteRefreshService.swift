@@ -143,10 +143,9 @@ final class QuoteRefreshService: ObservableObject {
 
             for asset in assets {
                 guard let quote = quoteByCode[asset.code] else { continue }
-                let rate = asset.market == "HK" ? configuration.hkdExchangeRate : 1.0
                 asset.name = asset.name.isEmpty ? quote.name : asset.name
-                asset.latestPrice = quote.latestPrice * rate
-                asset.previousCloseOrNetValue = quote.previousClose * rate
+                asset.latestPrice = quote.latestPrice
+                asset.previousCloseOrNetValue = quote.previousClose
                 asset.quoteUpdatedAt = quote.quoteTime
                 asset.updatedAt = .now
             }

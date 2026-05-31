@@ -334,6 +334,81 @@ final class QuoteConfigurationTests: XCTestCase {
 	        XCTAssertEqual(quote.changePercent, 0.02738, accuracy: 0.0001)
 	    }
 
+	    func testMXDataPayloadParsesBatchWithHKCodes() throws {
+	        let payload: [String: Any] = [
+	            "status": 0,
+	            "data": [
+	                "data": [
+	                    "searchDataResultDTO": [
+	                        "entityTagDTOList": [
+	                            [
+	                                "fullName": "贵州茅台",
+	                                "secuCode": "600519"
+	                            ],
+	                            [
+	                                "fullName": "腾讯控股",
+	                                "secuCode": "00700"
+	                            ]
+	                        ],
+	                        "dataTableDTOList": [
+	                            [
+	                                "code": "600519.SH",
+	                                "entityName": "贵州茅台",
+	                                "table": [
+	                                    "headName": ["2026-05-29"],
+	                                    "1": ["1326元"],
+	                                    "2": ["1275.98元"],
+	                                    "3": ["3.92%"]
+	                                ],
+	                                "nameMap": [
+	                                    "1": "收盘价",
+	                                    "2": "前收盘价",
+	                                    "3": "涨跌幅"
+	                                ]
+	                            ],
+	                            [
+	                                "code": "00700.HK",
+	                                "entityName": "腾讯控股",
+	                                "table": [
+	                                    "headName": ["2026-05-29"],
+	                                    "1": ["427.2港元"],
+	                                    "2": ["425港元"],
+	                                    "3": ["0.5176%"]
+	                                ],
+	                                "nameMap": [
+	                                    "1": "收盘价",
+	                                    "2": "前收盘价",
+	                                    "3": "涨跌幅"
+	                                ]
+	                            ]
+	                        ]
+	                    ]
+	                ]
+	            ]
+	        ]
+
+	        let quotes = try MXDataQuoteProvider.parseQuotes(from: payload)
+
+	        XCTAssertEqual(quotes.count, 2)
+	        let moutai = quotes.first { $0.code == "600519" }
+	        let tencent = quotes.first { $0.code == "00700" }
+	        XCTAssertNotNil(moutai)
+	        XCTAssertNotNil(tencent)
+	        XCTAssertEqual(moutai?.latestPrice ?? 0, 1326, accuracy: 0.01)
+	        XCTAssertEqual(tencent?.latestPrice ?? 0, 427.2, accuracy: 0.01)
+	        XCTAssertEqual(tencent?.name, "腾讯控股")
+	    }
+
+	    func testHKStockReturnsCorrectCurrency() {
+	        let hkStock = Asset(type: .stock, name: "腾讯", code: "00700", market: "HK", quantityOrAmount: 100, cost: 380)
+	        let cnStock = Asset(type: .stock, name: "茅台", code: "600519", market: "CN", quantityOrAmount: 100, cost: 1326)
+
+	        XCTAssertEqual(hkStock.market, "HK")
+	        XCTAssertEqual(hkStock.displayCurrency, "HKD")
+	        XCTAssertEqual(hkStock.currencySymbol, "HK$")
+	        XCTAssertEqual(cnStock.currencySymbol, "¥")
+	    }
+
 	    func testMXDataMissingLatestPriceShowsAvailableFields() throws {
         let payload: [String: Any] = [
             "status": 0,

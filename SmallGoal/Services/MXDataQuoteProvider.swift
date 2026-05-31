@@ -21,21 +21,14 @@ struct MXDataQuoteProvider: QuoteProvider {
             throw QuoteProviderError.missingAPIKey
         }
 
-        var quotes: [Quote] = []
-        for code in codes {
-            quotes.append(try await fetchQuote(for: code, apiKey: apiKey))
-        }
-        return quotes
-    }
-
-    private func fetchQuote(for code: String, apiKey: String) async throws -> Quote {
+        let codesString = codes.joined(separator: " ")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "apikey")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "toolQuery": "\(code) 最新价、昨收、涨跌额、涨跌幅、证券名称"
+            "toolQuery": "\(codesString) 最新价、昨收、涨跌额、涨跌幅、证券名称"
         ])
 
         let data: Data
@@ -63,7 +56,7 @@ struct MXDataQuoteProvider: QuoteProvider {
         guard let payload = object as? [String: Any] else {
             throw QuoteProviderError.invalidResponse
         }
-        return try Self.parseQuote(from: payload, fallbackCode: code)
+        return try Self.parseQuotes(from: payload)
     }
 
     static func parseQuote(from payload: [String: Any], fallbackCode: String) throws -> Quote {
@@ -82,7 +75,61 @@ struct MXDataQuoteProvider: QuoteProvider {
             throw QuoteProviderError.invalidPayload("妙想接口未返回有效行情表格")
         }
 
-        let fields = mergedFields(from: rows)
+        return try quoteFrom(fields: mergedFields(from: rows), code: entity.code, name: entity.name)
+    }
+
+    static func parseQuotes(from payload: [String: Any]) throws -> [Quote] {
+        let status = intValue(payload["status"])
+        guard status == nil || status == 0 else {
+            let message = stringValue(payload["message"]) ?? "未知错误"
+            throw QuoteProviderError.invalidPayload("妙想接口返回错误：\(message)")
+        }
+
+        let searchResult = (((payload["data"] as? [String: Any])?["data"] as? [String: Any])?["searchDataResultDTO"] as? [String: Any])
+        guard let searchResult else { throw QuoteProviderError.invalidResponse }
+
+        let dtos = searchResult["dataTableDTOList"] as? [[String: Any]] ?? []
+        guard !dtos.isEmpty else {
+            throw QuoteProviderError.invalidPayload("妙想接口未返回有效行情表格")
+        }
+
+        var entityByCode: [String: (code: String, name: String)] = [:]
+        if let entityList = searchResult["entityTagDTOList"] as? [[String: Any]] {
+            for entity in entityList {
+                let rawCode = stringValue(entity["secuCode"]) ?? stringValue(entity["code"]) ?? ""
+                guard let code = normalizedCode(rawCode), entityByCode[code] == nil else { continue }
+                let name = stringValue(entity["fullName"])
+                    ?? stringValue(entity["shortName"])
+                    ?? stringValue(entity["name"])
+                    ?? code
+                entityByCode[code] = (code, name)
+            }
+        }
+
+        var dtosByCode: [String: [[String: Any]]] = [:]
+        for dto in dtos {
+            guard let dtoCode = stringValue(dto["code"]),
+                  let normalized = normalizedCode(dtoCode) else { continue }
+            dtosByCode[normalized, default: []].append(dto)
+        }
+
+        var quotes: [Quote] = []
+        for (code, groupedDTOs) in dtosByCode {
+            let rows = groupedDTOs.flatMap { tableRows(from: $0) }
+            guard !rows.isEmpty else { continue }
+            let entity = entityByCode[code] ?? (code, code)
+            if let quote = try? quoteFrom(fields: mergedFields(from: rows), code: entity.code, name: entity.name) {
+                quotes.append(quote)
+            }
+        }
+
+        guard !quotes.isEmpty else {
+            throw QuoteProviderError.invalidPayload("妙想接口未返回有效行情数据")
+        }
+        return quotes
+    }
+
+    private static func quoteFrom(fields: [String: String], code: String, name: String) throws -> Quote {
         guard let latestPrice = firstDouble(in: fields, matching: latestPriceCandidates) else {
             let availableFields = fields.keys.sorted().prefix(12).joined(separator: "、")
             let suffix = availableFields.isEmpty ? "" : "。可用字段：\(availableFields)"
@@ -114,8 +161,8 @@ struct MXDataQuoteProvider: QuoteProvider {
         let quoteTime = firstDate(in: fields, matching: ["date", "日期", "时间", "更新时间"]) ?? .now
 
         return Quote(
-            code: entity.code,
-            name: entity.name,
+            code: code,
+            name: name,
             latestPrice: latestPrice,
             previousClose: previousClose,
             changeAmount: changeAmount,
@@ -356,7 +403,7 @@ struct MXDataQuoteProvider: QuoteProvider {
 
     private static func normalizedCode(_ rawCode: String) -> String? {
         let digits = rawCode.filter(\.isNumber)
-        guard digits.count >= 6 else { return nil }
+        guard digits.count >= 5 else { return nil }
         return String(digits.suffix(6))
     }
 }

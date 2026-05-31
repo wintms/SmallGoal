@@ -29,10 +29,10 @@ struct AssetDetailView: View {
                     }
 
                     HStack(spacing: 12) {
-                        MetricTile(title: "当前价值", value: FinanceFormatters.currency(performance.currentValue), tint: .primary)
+                        MetricTile(title: "当前价值", value: FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol), tint: .primary)
                         MetricTile(
                             title: "今日盈亏",
-                            value: FinanceFormatters.signedCurrency(performance.dailyProfitLoss),
+                            value: FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol),
                             tint: FinanceFormatters.profitColor(performance.dailyProfitLoss)
                         )
                     }
@@ -41,8 +41,8 @@ struct AssetDetailView: View {
             }
 
             Section("收益") {
-                DetailRow("持仓成本", FinanceFormatters.currency(performance.costValue))
-                DetailRow("累计盈亏", FinanceFormatters.signedCurrency(performance.cumulativeProfitLoss), tint: FinanceFormatters.profitColor(performance.cumulativeProfitLoss))
+                DetailRow("持仓成本", FinanceFormatters.valueWithSymbol(performance.costValue, symbol: asset.currencySymbol))
+                DetailRow("累计盈亏", FinanceFormatters.signedValueWithSymbol(performance.cumulativeProfitLoss, symbol: asset.currencySymbol), tint: FinanceFormatters.profitColor(performance.cumulativeProfitLoss))
                 DetailRow("今日盈亏率", FinanceFormatters.percent(performance.dailyProfitLossPercent), tint: FinanceFormatters.profitColor(performance.dailyProfitLoss))
             }
 
@@ -51,9 +51,9 @@ struct AssetDetailView: View {
                 DetailRow("币种", asset.displayCurrency)
                 DetailRow(quantityTitle, FinanceFormatters.decimal(asset.quantityOrAmount))
                 if asset.type == .stock || asset.type == .fund {
-                    DetailRow("成本价", FinanceFormatters.decimal(asset.cost))
-                    DetailRow("最新价格", FinanceFormatters.decimal(asset.latestPrice))
-                    DetailRow("昨收/上一净值", FinanceFormatters.decimal(asset.previousCloseOrNetValue))
+                    DetailRow("成本价", FinanceFormatters.valueWithSymbol(asset.cost, symbol: asset.currencySymbol))
+                    DetailRow("最新价格", FinanceFormatters.valueWithSymbol(asset.latestPrice, symbol: asset.currencySymbol))
+                    DetailRow("昨收/上一净值", FinanceFormatters.valueWithSymbol(asset.previousCloseOrNetValue, symbol: asset.currencySymbol))
                 }
                 if asset.type == .wealthProduct {
                     DetailRow("年化收益率", FinanceFormatters.percent(asset.annualYield))
