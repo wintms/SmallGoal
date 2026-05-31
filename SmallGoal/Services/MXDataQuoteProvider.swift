@@ -282,10 +282,15 @@ struct MXDataQuoteProvider: QuoteProvider {
         return (code, name)
     }
 
+    private static func isPlaceholder(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        return trimmed == "-" || trimmed == "--" || trimmed == "N/A" || trimmed.isEmpty
+    }
+
     private static func mergedFields(from rows: [[String: String]]) -> [String: String] {
         var fields: [String: String] = [:]
         for row in rows {
-            for (key, value) in row where !value.isEmpty && fields[key] == nil {
+            for (key, value) in row where !isPlaceholder(value) && fields[key] == nil {
                 fields[key] = value
             }
         }

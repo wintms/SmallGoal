@@ -165,20 +165,20 @@ final class QuoteRefreshService: ObservableObject {
             let missingCodes = zip(codes, normalizedCodes).filter { quoteByCode[$1] == nil }.map(\.0)
             if missingCodes.isEmpty {
                 lastSuccessfulRefreshAt = date
-                state = .success(message: "行情已更新 \(quotes.count) 项", date: date)
+                state = .success(message: "已更新 \(quotes.count) 项", date: date)
             } else {
                 if !quotes.isEmpty {
                     lastSuccessfulRefreshAt = date
                 }
                 state = .warning(
-                    message: "行情部分更新 \(quotes.count) 项",
-                    detail: "未返回代码：\(missingCodes.joined(separator: ", "))",
+                    message: "部分更新 \(quotes.count) 项",
+                    detail: "更新失败：\(missingCodes.joined(separator: ", "))",
                     date: quotes.isEmpty ? nil : date
                 )
             }
         } catch {
             state = .failure(
-                message: "行情刷新失败",
+                message: "更新失败",
                 detail: error.localizedDescription
             )
         }
