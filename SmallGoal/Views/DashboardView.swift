@@ -5,13 +5,19 @@ struct DashboardView: View {
     @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
     @Query(sort: \Asset.updatedAt, order: .reverse) private var assets: [Asset]
     @State private var isTotalHidden = false
+    @State private var performances: [AssetPerformance] = []
+    @State private var selectedAsset: Asset?
 
     private var snapshot: PortfolioSnapshot {
         PortfolioCalculator.snapshot(for: assets)
     }
 
-    private var performances: [AssetPerformance] {
-        assets
+    private var movers: [AssetPerformance] {
+        performances.prefix(5).map { $0 }
+    }
+
+    private func refreshPerformances() {
+        performances = assets
             .map { PortfolioCalculator.performance(for: $0) }
             .sorted { abs($0.dailyProfitLoss) > abs($1.dailyProfitLoss) }
     }
@@ -34,16 +40,21 @@ struct DashboardView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    summaryHeader
-                    allocationSection
-                    dailyContributionSection
-                    moversSection
-                }
-                .padding()
+            List {
+                summaryHeader
+                allocationSection
+                dailyContributionSection
+                moversSection
             }
-            .background(Color(.systemGroupedBackground))
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(12)
+            .onAppear { refreshPerformances() }
+            .onChange(of: assets.count) { _, _ in refreshPerformances() }
+            .sheet(item: $selectedAsset) { asset in
+                NavigationStack {
+                    AssetDetailView(asset: asset)
+                }
+            }
             .navigationTitle("小目标")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -88,7 +99,7 @@ struct DashboardView: View {
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(isTotalHidden ? .secondary : FinanceFormatters.profitColor(snapshot.dailyProfitLoss))
                     .frame(width: 44, height: 44)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(Color(.quaternarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             HStack(spacing: 12) {
@@ -108,8 +119,7 @@ struct DashboardView: View {
 
             QuoteStatusLine(state: dashboardQuoteState)
         }
-        .padding(18)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.vertical, 6)
     }
 
     private var allocationSection: some View {
@@ -127,7 +137,7 @@ struct DashboardView: View {
                 }
             }
         }
-        .sectionCard()
+        .padding(.vertical, 6)
     }
 
     private var dailyContributionSection: some View {
@@ -150,7 +160,7 @@ struct DashboardView: View {
                 .font(.subheadline)
             }
         }
-        .sectionCard()
+        .padding(.vertical, 6)
     }
 
     private func dailyReturnRate() -> String? {
@@ -181,15 +191,12 @@ struct DashboardView: View {
                 ContentUnavailableView("暂无持仓", systemImage: "chart.line.uptrend.xyaxis")
                     .frame(minHeight: 120)
             } else {
-                ForEach(performances.prefix(5)) { item in
-                    NavigationLink {
-                        AssetDetailView(asset: item.asset)
-                    } label: {
-                        HStack(spacing: 12) {
+                ForEach(movers) { item in
+                    HStack(spacing: 12) {
                             Image(systemName: item.asset.type.systemImage)
                                 .foregroundStyle(item.asset.type.accentColor)
                                 .frame(width: 32, height: 32)
-                                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .background(Color(.quaternarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.asset.name)
@@ -209,12 +216,14 @@ struct DashboardView: View {
                             }
                             .monospacedDigit()
                         }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedAsset = item.asset
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
-        .sectionCard()
+        .padding(.vertical, 6)
     }
 }
 

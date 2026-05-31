@@ -40,6 +40,6 @@ enum FinanceFormatters {
 extension View {
     func sectionCard() -> some View {
         padding(16)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
