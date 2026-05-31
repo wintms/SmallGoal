@@ -4,6 +4,7 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
     @Query(sort: \Asset.updatedAt, order: .reverse) private var assets: [Asset]
+    @State private var isTotalHidden = false
 
     private var snapshot: PortfolioSnapshot {
         PortfolioCalculator.snapshot(for: assets)
@@ -65,10 +66,19 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("总资产")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text(snapshot.totalValue.formatted(.currency(code: "CNY").precision(.fractionLength(1))))
+                    HStack(spacing: 8) {
+                        Text("总资产")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            isTotalHidden.toggle()
+                        } label: {
+                            Image(systemName: isTotalHidden ? "eye.slash" : "eye")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text(isTotalHidden ? "****" : snapshot.totalValue.formatted(.currency(code: "CNY").precision(.fractionLength(1))))
                         .font(.system(.largeTitle, design: .rounded, weight: .semibold))
                         .monospacedDigit()
                         .minimumScaleFactor(0.7)
