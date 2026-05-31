@@ -6,24 +6,35 @@ struct HoldingsView: View {
     @Query(sort: \Asset.updatedAt, order: .reverse) private var assets: [Asset]
     @State private var showingAddAsset = false
     @State private var selectedType: AssetType?
+    @State private var performances: [UUID: AssetPerformance] = [:]
+
+    @State private var groupedAssets: [(AssetType, [Asset])] = []
+
+    private func refreshState() {
+        groupedAssets = AssetType.allCases.compactMap { type in
+            let filtered = assets.filter { $0.type == type }
+            return filtered.isEmpty ? nil : (type, filtered)
+        }
+        performances = Dictionary(uniqueKeysWithValues: assets.map { ($0.id, PortfolioCalculator.performance(for: $0)) })
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(AssetType.allCases) { type in
-                    let typedAssets = assets.filter { $0.type == type }
-                    if !typedAssets.isEmpty {
-                        Section(type.title) {
-                            ForEach(typedAssets) { asset in
-                                NavigationLink {
-                                    AssetDetailView(asset: asset)
-                                } label: {
-                                    HoldingRow(asset: asset)
-                                }
+                ForEach(groupedAssets, id: \.0) { type, typedAssets in
+                    Section(type.title) {
+                        ForEach(typedAssets) { asset in
+                            NavigationLink {
+                                AssetDetailView(asset: asset)
+                            } label: {
+                                HoldingRow(
+                                    asset: asset,
+                                    performance: performances[asset.id]
+                                )
                             }
-                            .onDelete { offsets in
-                                deleteAssets(at: offsets, from: typedAssets)
-                            }
+                        }
+                        .onDelete { offsets in
+                            deleteAssets(at: offsets, from: typedAssets)
                         }
                     }
                 }
@@ -37,6 +48,8 @@ struct HoldingsView: View {
                     )
                 }
             }
+            .onAppear { refreshState() }
+            .onChange(of: assets.count) { _, _ in refreshState() }
             .navigationTitle("持仓")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -64,14 +77,14 @@ struct HoldingsView: View {
         for index in offsets {
             modelContext.delete(typedAssets[index])
         }
+        try? modelContext.save()
+        refreshState()
     }
 }
 
 private struct HoldingRow: View {
     let asset: Asset
-    private var performance: AssetPerformance {
-        PortfolioCalculator.performance(for: asset)
-    }
+    let performance: AssetPerformance?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -90,14 +103,16 @@ private struct HoldingRow: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol))
-                    .font(.subheadline.weight(.semibold))
-                Text(FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol))
-                    .font(.caption)
-                    .foregroundStyle(FinanceFormatters.profitColor(performance.dailyProfitLoss))
+            if let performance {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol))
+                        .font(.subheadline.weight(.semibold))
+                    Text(FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol))
+                        .font(.caption)
+                        .foregroundStyle(FinanceFormatters.profitColor(performance.dailyProfitLoss))
+                }
+                .monospacedDigit()
             }
-            .monospacedDigit()
         }
         .padding(.vertical, 4)
     }
