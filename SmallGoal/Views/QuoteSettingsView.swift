@@ -40,7 +40,7 @@ struct QuoteSettingsView: View {
                 } header: {
                     Text("东方财富妙想 API")
                 } footer: {
-                    Text("App 将直接请求妙想 API。API Key 仅保存在本机 Keychain 中。")
+                    Text("App 将直接请求妙想 API, API Key 仅保存在本机 Keychain 中。请注意 API 的每日使用次数限制。")
                 }
             }
 

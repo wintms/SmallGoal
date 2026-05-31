@@ -141,7 +141,7 @@ final class QuoteRefreshService: ObservableObject {
     }
 
     private func fetchAndApplyQuotes(codes: [String], assets: [Asset]) async {
-        state = .refreshing(message: "正在刷新行情")
+        state = .refreshing(message: "正在更新")
 
         do {
             let provider = try makeProvider()
@@ -204,9 +204,9 @@ final class QuoteRefreshService: ObservableObject {
     private var configurationMissingMessage: String {
         switch configuration.mode {
         case .mock:
-            "行情源尚未配置"
+            "数据源尚未配置"
         case .chinaMarket:
-            "行情源尚未配置"
+            "数据源尚未配置"
         case .mxData:
             "妙想 API Key 尚未配置"
         }
@@ -215,11 +215,11 @@ final class QuoteRefreshService: ObservableObject {
     private var configurationMissingDetail: String {
         switch configuration.mode {
         case .mock:
-            "当前模拟行情无需额外配置。"
+            "当前模拟数据无需额外配置。"
         case .chinaMarket:
-            "请在设置中填写真实行情接口地址。"
+            "请在设置中填写真实数据接口地址。"
         case .mxData:
-            "请在设置 > 行情中保存妙想 API Key。"
+            "请在设置 > 数据中保存妙想 API Key。"
         }
     }
 
