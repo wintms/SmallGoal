@@ -48,6 +48,7 @@ struct AssetDetailView: View {
 
             Section("资产信息") {
                 DetailRow("类型", asset.type.title)
+                DetailRow("币种", asset.displayCurrency)
                 DetailRow(quantityTitle, FinanceFormatters.decimal(asset.quantityOrAmount))
                 if asset.type == .stock || asset.type == .fund {
                     DetailRow("成本价", FinanceFormatters.decimal(asset.cost))

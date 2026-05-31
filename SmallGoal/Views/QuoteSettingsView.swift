@@ -8,6 +8,7 @@ struct QuoteSettingsView: View {
     @State private var mode: QuoteProviderMode = .mock
     @State private var endpointURLString = ""
     @State private var apiKeyInput = ""
+    @State private var hkdRate: Double = 0.92
     @State private var localMessage: String?
 
     var body: some View {
@@ -68,7 +69,25 @@ struct QuoteSettingsView: View {
                 }
             }
 
-            Section("状态") {
+            Section {
+                    HStack {
+                        Text("HKD → CNY")
+                        Spacer()
+                        TextField("0.92", value: $hkdRate, format: .number)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 100)
+                    }
+                    .onChange(of: hkdRate) { _, newValue in
+                        quoteRefreshService.updateHKDExchangeRate(newValue)
+                    }
+                } header: {
+                    Text("汇率")
+                } footer: {
+                    Text("港股行情价格将乘以该汇率转换为人民币。")
+                }
+
+                Section("状态") {
                 LabeledContent("当前状态", value: quoteRefreshService.state.message)
                 if let detail = quoteRefreshService.state.detail {
                     Text(detail)
@@ -120,6 +139,7 @@ struct QuoteSettingsView: View {
     private func loadConfiguration() {
         mode = quoteRefreshService.configuration.mode
         endpointURLString = quoteRefreshService.configuration.endpointURLString
+        hkdRate = quoteRefreshService.configuration.hkdExchangeRate
     }
 
     private func saveConfiguration() {

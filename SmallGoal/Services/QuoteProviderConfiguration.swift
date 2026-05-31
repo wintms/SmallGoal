@@ -31,11 +31,13 @@ struct QuoteProviderConfiguration: Equatable {
     var mode: QuoteProviderMode
     var endpointURLString: String
     var hasAPIKey: Bool
+    var hkdExchangeRate: Double
 
     static let defaultValue = QuoteProviderConfiguration(
         mode: .mock,
         endpointURLString: "",
-        hasAPIKey: false
+        hasAPIKey: false,
+        hkdExchangeRate: 0.92
     )
 
     var endpointURL: URL? {
@@ -67,6 +69,7 @@ final class QuoteConfigurationStore: ObservableObject {
     private enum DefaultsKey {
         static let mode = "quote.provider.mode"
         static let endpointURLString = "quote.provider.endpointURLString"
+        static let hkdExchangeRate = "quote.provider.hkdExchangeRate"
     }
 
     init(
@@ -80,11 +83,16 @@ final class QuoteConfigurationStore: ObservableObject {
             .flatMap(QuoteProviderMode.init(rawValue:)) ?? .mock
         let endpoint = defaults.string(forKey: DefaultsKey.endpointURLString) ?? ""
         let hasAPIKey = (try? credentialStore.read(account: Self.apiKeyAccount))?.isEmpty == false
+        let hkdRate: Double = {
+            if defaults.object(forKey: DefaultsKey.hkdExchangeRate) == nil { return 0.92 }
+            return defaults.double(forKey: DefaultsKey.hkdExchangeRate)
+        }()
 
         configuration = QuoteProviderConfiguration(
             mode: storedMode,
             endpointURLString: endpoint,
-            hasAPIKey: hasAPIKey
+            hasAPIKey: hasAPIKey,
+            hkdExchangeRate: hkdRate
         )
     }
 
@@ -113,5 +121,10 @@ final class QuoteConfigurationStore: ObservableObject {
     func clearAPIKey() throws {
         try credentialStore.delete(account: Self.apiKeyAccount)
         configuration.hasAPIKey = false
+    }
+
+    func update(hkdExchangeRate rate: Double) {
+        defaults.set(rate, forKey: DefaultsKey.hkdExchangeRate)
+        configuration.hkdExchangeRate = rate
     }
 }

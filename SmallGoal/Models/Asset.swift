@@ -108,4 +108,15 @@ final class Asset {
     var isQuoteBacked: Bool {
         type == .stock || type == .fund
     }
+
+    var displayCurrency: String {
+        switch type {
+        case .stock:
+            market == "HK" ? "HKD" : "CNY"
+        case .fund:
+            "CNY"
+        case .wealthProduct, .cash:
+            currency.isEmpty ? "CNY" : currency
+        }
+    }
 }

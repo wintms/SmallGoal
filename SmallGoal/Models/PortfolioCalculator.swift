@@ -50,10 +50,17 @@ enum PortfolioCalculator {
         }
     }
 
+    private static func hkdExchangeRate() -> Double {
+        if UserDefaults.standard.object(forKey: "quote.provider.hkdExchangeRate") == nil { return 0.92 }
+        let rate = UserDefaults.standard.double(forKey: "quote.provider.hkdExchangeRate")
+        return rate > 0 ? rate : 0.92
+    }
+
     static func costValue(for asset: Asset) -> Double {
         switch asset.type {
         case .stock, .fund:
-            return asset.quantityOrAmount * asset.cost
+            let rate = asset.market == "HK" ? hkdExchangeRate() : 1.0
+            return asset.quantityOrAmount * asset.cost * rate
         case .wealthProduct, .cash:
             return asset.quantityOrAmount
         }

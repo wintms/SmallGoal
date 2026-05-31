@@ -83,6 +83,11 @@ final class QuoteRefreshService: ObservableObject {
         configuration = configurationStore.configuration
     }
 
+    func updateHKDExchangeRate(_ rate: Double) {
+        configurationStore.update(hkdExchangeRate: rate)
+        configuration = configurationStore.configuration
+    }
+
     func refresh(assets: [Asset]) async {
         guard configuration.canRefresh else {
             state = .failure(
@@ -138,9 +143,10 @@ final class QuoteRefreshService: ObservableObject {
 
             for asset in assets {
                 guard let quote = quoteByCode[asset.code] else { continue }
+                let rate = asset.market == "HK" ? configuration.hkdExchangeRate : 1.0
                 asset.name = asset.name.isEmpty ? quote.name : asset.name
-                asset.latestPrice = quote.latestPrice
-                asset.previousCloseOrNetValue = quote.previousClose
+                asset.latestPrice = quote.latestPrice * rate
+                asset.previousCloseOrNetValue = quote.previousClose * rate
                 asset.quoteUpdatedAt = quote.quoteTime
                 asset.updatedAt = .now
             }
