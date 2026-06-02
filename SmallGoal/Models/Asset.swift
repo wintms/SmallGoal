@@ -75,6 +75,15 @@ enum AssetType: String, CaseIterable, Identifiable, Codable {
         case .cash: .mint
         }
     }
+
+    var subduedAccentColor: Color {
+        switch self {
+        case .stock: Color(red: 0.30, green: 0.48, blue: 0.74)
+        case .fund: Color(red: 0.54, green: 0.43, blue: 0.68)
+        case .wealthProduct: Color(red: 0.72, green: 0.52, blue: 0.30)
+        case .cash: Color(red: 0.28, green: 0.58, blue: 0.55)
+        }
+    }
 }
 
 @Model

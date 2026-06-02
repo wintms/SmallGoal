@@ -218,6 +218,40 @@ final class QuoteConfigurationTests: XCTestCase {
         XCTAssertEqual(quote.changePercent, 0.0108, accuracy: 0.0001)
     }
 
+    func testMXDataPayloadWithoutDateDoesNotUseCurrentTime() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "贵州茅台",
+                                "secuCode": "600519"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "entityName": "贵州茅台",
+                                "returnCodeMap": [
+                                    "600519": "贵州茅台"
+                                ],
+                                "table": [
+                                    "headName": ["最新价", "昨收", "涨跌额", "涨跌幅"],
+                                    "600519": [1688.0, 1670.0, 18.0, "1.08%"]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quote = try MXDataQuoteProvider.parseQuote(from: payload, fallbackCode: "600519")
+
+        XCTAssertEqual(quote.quoteTime, .distantPast)
+    }
+
     func testMXDataPayloadUsesClosePriceWhenLatestPriceIsUnavailable() throws {
         let payload: [String: Any] = [
             "status": 0,
@@ -298,6 +332,45 @@ final class QuoteConfigurationTests: XCTestCase {
 	        XCTAssertEqual(quote.previousClose, 1.096, accuracy: 0.001)
 	        XCTAssertEqual(quote.changePercent, 0.02738, accuracy: 0.0001)
 	    }
+
+    func testMXDataPayloadParsesFundUnitNetValueAsLatestPrice() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "创金合信中证红利低波动指数Y",
+                                "secuCode": "022900"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "table": [
+                                    "headName": ["2026-05-29"],
+                                    "1": ["2.1636"],
+                                    "2": ["1.354%"]
+                                ],
+                                "nameMap": [
+                                    "1": "单位净值",
+                                    "2": "单位净值增长率"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quote = try MXDataQuoteProvider.parseQuote(from: payload, fallbackCode: "022900")
+
+        XCTAssertEqual(quote.code, "022900")
+        XCTAssertEqual(quote.name, "创金合信中证红利低波动指数Y")
+        XCTAssertEqual(quote.latestPrice, 2.1636, accuracy: 0.0001)
+        XCTAssertEqual(quote.changePercent, 0.01354, accuracy: 0.0001)
+        XCTAssertEqual(quote.previousClose, 2.1347, accuracy: 0.0001)
+    }
 
 	    func testMXDataPayloadSkipsRawTableForPercentFields() throws {
 	        let payload: [String: Any] = [
@@ -481,6 +554,45 @@ final class QuoteConfigurationTests: XCTestCase {
             XCTAssertNotNil(date)
         } else {
             XCTFail("Expected warning state")
+        }
+    }
+
+    func testStaleQuoteTimeWarnsAfterSuccessfulRefresh() async {
+        let staleQuoteTime = Calendar.current.date(byAdding: .day, value: -10, to: .now)!
+        let service = QuoteRefreshService(
+            configurationStore: makeStore(),
+            providerFactory: { _, _ in StaticQuoteProvider(quotes: [
+                Quote(
+                    code: "600519",
+                    name: "贵州茅台",
+                    latestPrice: 10,
+                    previousClose: 9,
+                    changeAmount: 1,
+                    changePercent: 0.1111,
+                    quoteTime: staleQuoteTime
+                )
+            ]) }
+        )
+        let asset = Asset(
+            type: .stock,
+            name: "测试",
+            code: "600519",
+            quantityOrAmount: 100,
+            cost: 8,
+            latestPrice: 8,
+            previousCloseOrNetValue: 8
+        )
+
+        await service.refresh(assets: [asset])
+
+        XCTAssertEqual(asset.latestPrice, 10, accuracy: 0.001)
+        XCTAssertEqual(asset.quoteUpdatedAt, staleQuoteTime)
+        if case .warning(let message, let detail, let date) = service.state {
+            XCTAssertEqual(message, "部分行情非最近交易日")
+            XCTAssertTrue(detail?.contains("不是最近交易日数据") == true)
+            XCTAssertNotNil(date)
+        } else {
+            XCTFail("Expected stale quote warning state")
         }
     }
 

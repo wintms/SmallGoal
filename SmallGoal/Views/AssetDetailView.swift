@@ -36,9 +36,10 @@ struct AssetDetailView: View {
                     HStack(spacing: 12) {
                         MetricTile(title: "当前价值", value: FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol), tint: .primary)
                         MetricTile(
-                            title: "今日盈亏",
-                            value: FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol),
-                            tint: FinanceFormatters.profitColor(performance.dailyProfitLoss)
+                            title: "累计盈亏",
+                            value: FinanceFormatters.signedValueWithSymbol(performance.cumulativeProfitLoss, symbol: asset.currencySymbol),
+                            tint: FinanceFormatters.profitColor(performance.cumulativeProfitLoss),
+                            subtitle: cumulativeReturnRate()
                         )
                     }
                 }
@@ -47,7 +48,7 @@ struct AssetDetailView: View {
 
             Section("收益") {
                 DetailRow("持仓成本", FinanceFormatters.valueWithSymbol(performance.costValue, symbol: asset.currencySymbol))
-                DetailRow("累计盈亏", FinanceFormatters.signedValueWithSymbol(performance.cumulativeProfitLoss, symbol: asset.currencySymbol), tint: FinanceFormatters.profitColor(performance.cumulativeProfitLoss))
+                DetailRow("今日盈亏", FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol), tint: FinanceFormatters.profitColor(performance.dailyProfitLoss))
                 DetailRow("今日盈亏率", FinanceFormatters.percent(performance.dailyProfitLossPercent), tint: FinanceFormatters.profitColor(performance.dailyProfitLoss))
             }
 
@@ -178,6 +179,13 @@ struct AssetDetailView: View {
         tx.asset = asset
         modelContext.insert(tx)
         try? modelContext.save()
+    }
+
+    private func cumulativeReturnRate() -> String? {
+        guard performance.costValue > 0 else { return nil }
+        let rate = performance.cumulativeProfitLoss / performance.costValue
+        let prefix = rate > 0 ? "+" : ""
+        return prefix + FinanceFormatters.percent(rate)
     }
 
     private var quantityTitle: String {

@@ -196,7 +196,7 @@ struct MXDataQuoteProvider: QuoteProvider {
 
         let changePercent = changePercentFromField
             ?? (previousClose == 0 ? 0 : changeAmount / previousClose)
-        let quoteTime = firstDate(in: fields, matching: ["date", "日期", "时间", "更新时间"]) ?? .now
+        let quoteTime = firstDate(in: fields, matching: ["date", "日期", "时间", "更新时间"]) ?? .distantPast
 
         return Quote(
             code: code,
@@ -320,7 +320,7 @@ struct MXDataQuoteProvider: QuoteProvider {
     }
 
     private static var latestPriceCandidates: [String] {
-        ["最新价", "最新价格", "现价", "当前价", "最新", "价格", "收盘价", "收盘", "区间最高单位净值", "最高单位净值", "最新净值"]
+        ["最新价", "最新价格", "现价", "当前价", "最新", "价格", "收盘价", "收盘", "区间最高单位净值", "最高单位净值", "最新净值", "单位净值"]
     }
 
     private static func headersLookLikeIndicators(_ headers: [Any]) -> Bool {
@@ -378,6 +378,12 @@ struct MXDataQuoteProvider: QuoteProvider {
         for candidate in candidates {
             if let exact = fields[candidate], !exact.isEmpty {
                 return exact
+            }
+        }
+
+        for candidate in candidates {
+            if candidate == "单位净值" {
+                continue
             }
             if let match = fields.first(where: { $0.key.contains(candidate) && !$0.value.isEmpty }) {
                 return match.value

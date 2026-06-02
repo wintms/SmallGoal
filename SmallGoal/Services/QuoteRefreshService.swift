@@ -172,7 +172,16 @@ final class QuoteRefreshService: ObservableObject {
             let missingCodes = zip(codes, normalizedCodes).filter { quoteByCode[$1] == nil }.map(\.0)
             if missingCodes.isEmpty {
                 lastSuccessfulRefreshAt = date
-                state = .success(message: "已更新 \(quotes.count) 项", date: date)
+                let staleAssets = staleQuoteAssets(in: assets, now: date)
+                if staleAssets.isEmpty {
+                    state = .success(message: "已更新 \(quotes.count) 项", date: date)
+                } else {
+                    state = .warning(
+                        message: "部分行情非最近交易日",
+                        detail: staleQuoteDetail(for: staleAssets),
+                        date: date
+                    )
+                }
             } else {
                 if !quotes.isEmpty {
                     lastSuccessfulRefreshAt = date
@@ -189,6 +198,29 @@ final class QuoteRefreshService: ObservableObject {
                 detail: error.localizedDescription
             )
         }
+    }
+
+    private func staleQuoteAssets(in assets: [Asset], now: Date) -> [Asset] {
+        let expectedDate = expectedLatestQuoteDate(now: now)
+        return assets.filter { asset in
+            guard let quoteUpdatedAt = asset.quoteUpdatedAt else { return true }
+            return Calendar.current.compare(quoteUpdatedAt, to: expectedDate, toGranularity: .day) == .orderedAscending
+        }
+    }
+
+    private func staleQuoteDetail(for assets: [Asset]) -> String {
+        let names = assets.prefix(3).map(\.name).filter { !$0.isEmpty }
+        let prefix = names.isEmpty ? "\(assets.count) 项行情" : "\(names.joined(separator: "、"))等 \(assets.count) 项"
+        return "\(prefix)不是最近交易日数据。"
+    }
+
+    private func expectedLatestQuoteDate(now: Date) -> Date {
+        var candidate = now
+        while Calendar.current.isDateInWeekend(candidate) {
+            guard let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: candidate) else { break }
+            candidate = previousDay
+        }
+        return candidate
     }
 
     private func normalizedCode(_ raw: String) -> String {

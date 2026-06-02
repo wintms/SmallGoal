@@ -107,9 +107,9 @@ private struct HoldingRow: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol))
                         .font(.subheadline.weight(.semibold))
-                    Text(FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol))
+                    Text(FinanceFormatters.signedValueWithSymbol(performance.cumulativeProfitLoss, symbol: asset.currencySymbol))
                         .font(.caption)
-                        .foregroundStyle(FinanceFormatters.profitColor(performance.dailyProfitLoss))
+                        .foregroundStyle(FinanceFormatters.profitColor(performance.cumulativeProfitLoss))
                 }
                 .monospacedDigit()
             }

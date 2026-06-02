@@ -2,7 +2,11 @@ import SwiftUI
 
 enum FinanceFormatters {
     static func currency(_ value: Double) -> String {
-        value.formatted(.currency(code: "CNY").precision(.fractionLength(4)))
+        value.formatted(.currency(code: "CNY").precision(.fractionLength(2)))
+    }
+
+    static func totalCurrency(_ value: Double) -> String {
+        value.formatted(.currency(code: "CNY").precision(.fractionLength(0)))
     }
 
     static func signedCurrency(_ value: Double) -> String {
@@ -11,11 +15,11 @@ enum FinanceFormatters {
     }
 
     static func percent(_ value: Double) -> String {
-        value.formatted(.percent.precision(.fractionLength(4)))
+        value.formatted(.percent.precision(.fractionLength(2)))
     }
 
     static func decimal(_ value: Double) -> String {
-        value.formatted(.number.precision(.fractionLength(4)))
+        value.formatted(.number.precision(.fractionLength(2)))
     }
 
     static func valueWithSymbol(_ value: Double, symbol: String) -> String {

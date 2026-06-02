@@ -7,19 +7,25 @@ struct DashboardView: View {
     @State private var isTotalHidden = false
     @State private var performances: [AssetPerformance] = []
     @State private var selectedAsset: Asset?
+    @State private var showsMovers = false
 
     private var snapshot: PortfolioSnapshot {
         PortfolioCalculator.snapshot(for: assets)
     }
 
+    private var dashboardDailyProfitLoss: Double {
+        performances.reduce(0) { $0 + dashboardDailyProfitLoss(for: $1) * cnyRate(for: $1.asset) }
+    }
+
     private var movers: [AssetPerformance] {
-        performances.prefix(5).map { $0 }
+        performances
+            .sorted { abs(dashboardDailyProfitLoss(for: $0)) > abs(dashboardDailyProfitLoss(for: $1)) }
+            .prefix(5)
+            .map { $0 }
     }
 
     private func refreshPerformances() {
-        performances = assets
-            .map { PortfolioCalculator.performance(for: $0) }
-            .sorted { abs($0.dailyProfitLoss) > abs($1.dailyProfitLoss) }
+        performances = assets.map { PortfolioCalculator.performance(for: $0) }
     }
 
     private var dashboardQuoteState: QuoteRefreshState {
@@ -44,10 +50,10 @@ struct DashboardView: View {
                 summaryHeader
                 allocationSection
                 dailyContributionSection
-                moversSection
             }
             .listStyle(.insetGrouped)
-            .listSectionSpacing(12)
+            .listSectionSpacing(18)
+            .safeAreaPadding(.bottom, 20)
             .onAppear { refreshPerformances() }
             .onChange(of: assets.count) { _, _ in refreshPerformances() }
             .sheet(item: $selectedAsset) { asset in
@@ -89,24 +95,24 @@ struct DashboardView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    Text(isTotalHidden ? "****" : snapshot.totalValue.formatted(.currency(code: "CNY").precision(.fractionLength(1))))
+                    Text(isTotalHidden ? "****" : FinanceFormatters.totalCurrency(snapshot.totalValue))
                         .font(.system(.largeTitle, design: .rounded, weight: .semibold))
                         .monospacedDigit()
                         .minimumScaleFactor(0.7)
                 }
                 Spacer()
-                Image(systemName: snapshot.dailyProfitLoss >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(isTotalHidden ? .secondary : FinanceFormatters.profitColor(snapshot.dailyProfitLoss))
-                    .frame(width: 44, height: 44)
+                Image(systemName: dashboardDailyProfitLoss >= 0 ? "arrow.up.right" : "arrow.down.right")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(isTotalHidden ? .secondary : FinanceFormatters.profitColor(dashboardDailyProfitLoss))
+                    .frame(width: 38, height: 38)
                     .background(Color(.quaternarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
 
             HStack(spacing: 12) {
                 MetricTile(
                     title: "今日盈亏",
-                    value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(snapshot.dailyProfitLoss),
-                    tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(snapshot.dailyProfitLoss),
+                    value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(dashboardDailyProfitLoss),
+                    tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(dashboardDailyProfitLoss),
                     subtitle: isTotalHidden ? nil : dailyReturnRate()
                 )
                 MetricTile(
@@ -130,7 +136,9 @@ struct DashboardView: View {
                 ContentUnavailableView("暂无资产", systemImage: "tray", description: Text("添加股票、基金、理财或现金后会显示分布。"))
                     .frame(minHeight: 160)
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
+                    AllocationStrip(allocations: snapshot.assetAllocation.filter { $0.value > 0 })
+
                     ForEach(snapshot.assetAllocation.filter { $0.value > 0 }) { allocation in
                         AllocationRow(allocation: allocation, hidden: isTotalHidden)
                     }
@@ -141,17 +149,18 @@ struct DashboardView: View {
     }
 
     private var dailyContributionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionTitle("今日贡献")
+        VStack(alignment: .leading, spacing: 14) {
+            SectionTitle("今日盈亏来源")
 
             ForEach(AssetType.allCases) { type in
                 let contribution = performances
                     .filter { $0.asset.type == type }
-                    .reduce(0) { $0 + $1.dailyProfitLoss * cnyRate(for: $1.asset) }
+                    .reduce(0) { $0 + dashboardDailyProfitLoss(for: $1) * cnyRate(for: $1.asset) }
 
                 HStack {
                     Label(type.title, systemImage: type.systemImage)
-                        .foregroundStyle(type.accentColor)
+                        .foregroundStyle(type.subduedAccentColor)
+                        .font(.subheadline.weight(.medium))
                     Spacer()
                     Text(FinanceFormatters.signedCurrency(contribution))
                         .foregroundStyle(FinanceFormatters.profitColor(contribution))
@@ -159,14 +168,40 @@ struct DashboardView: View {
                 }
                 .font(.subheadline)
             }
+
+            if !performances.isEmpty {
+                Divider()
+                    .padding(.vertical, 2)
+
+                DisclosureGroup(isExpanded: $showsMovers) {
+                    VStack(spacing: 14) {
+                        ForEach(movers) { item in
+                            MoverRow(item: item, dailyProfitLoss: dashboardDailyProfitLoss(for: item)) {
+                                selectedAsset = item.asset
+                            }
+                        }
+                    }
+                    .padding(.top, 10)
+                } label: {
+                    HStack {
+                        Text("主要持仓变动")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text("\(movers.count) 项")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
         .padding(.vertical, 6)
     }
 
     private func dailyReturnRate() -> String? {
-        let base = snapshot.totalValue - snapshot.dailyProfitLoss
+        let base = snapshot.totalValue - dashboardDailyProfitLoss
         guard base > 0 else { return nil }
-        let rate = snapshot.dailyProfitLoss / base
+        let rate = dashboardDailyProfitLoss / base
         let prefix = rate > 0 ? "+" : ""
         return prefix + rate.formatted(.percent.precision(.fractionLength(2)))
     }
@@ -183,48 +218,17 @@ struct DashboardView: View {
         asset.needsCNYConversion ? Market.rate(for: asset.resolvedMarket) : 1.0
     }
 
-    private var moversSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionTitle("持仓异动")
-
-            if performances.isEmpty {
-                ContentUnavailableView("暂无持仓", systemImage: "chart.line.uptrend.xyaxis")
-                    .frame(minHeight: 120)
-            } else {
-                ForEach(movers) { item in
-                    HStack(spacing: 12) {
-                            Image(systemName: item.asset.type.systemImage)
-                                .foregroundStyle(item.asset.type.accentColor)
-                                .frame(width: 32, height: 32)
-                                .background(Color(.quaternarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(item.asset.name)
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Text(item.asset.displayCode)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 3) {
-                                Text(FinanceFormatters.signedValueWithSymbol(item.dailyProfitLoss, symbol: item.asset.currencySymbol))
-                                    .foregroundStyle(FinanceFormatters.profitColor(item.dailyProfitLoss))
-                                Text(FinanceFormatters.valueWithSymbol(item.currentValue, symbol: item.asset.currencySymbol))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .monospacedDigit()
-                        }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedAsset = item.asset
-                    }
-                }
-            }
+    private func dashboardDailyProfitLoss(for performance: AssetPerformance) -> Double {
+        guard performance.asset.isQuoteBacked else {
+            return performance.dailyProfitLoss
         }
-        .padding(.vertical, 6)
+        guard let quoteUpdatedAt = performance.asset.quoteUpdatedAt,
+              Calendar.current.isDateInToday(quoteUpdatedAt) else {
+            return 0
+        }
+        return performance.dailyProfitLoss
     }
+
 }
 
 private struct QuoteStatusLine: View {
@@ -236,10 +240,10 @@ private struct QuoteStatusLine: View {
                 .foregroundStyle(tint)
                 .frame(width: 18)
             VStack(alignment: .leading, spacing: 3) {
-                Text(state.message)
+                Text(displayMessage)
                     .font(.footnote)
                     .foregroundStyle(tint)
-                if let detail = state.detail {
+                if let detail = displayDetail {
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -247,6 +251,47 @@ private struct QuoteStatusLine: View {
             }
             Spacer(minLength: 0)
         }
+    }
+
+    private var displayMessage: String {
+        switch state {
+        case .warning(_, let detail, _):
+            if let failedCount {
+                return "\(failedCount) 项数据更新失败"
+            }
+            if detail?.hasPrefix("更新失败：") == true {
+                return "部分数据未更新"
+            }
+            return state.message
+        default:
+            return state.message
+        }
+    }
+
+    private var displayDetail: String? {
+        switch state {
+        case .warning(_, let detail, _):
+            if detail?.hasPrefix("更新失败：") == true {
+                return "点按刷新或到持仓页检查行情代码。"
+            }
+            return detail
+        default:
+            return state.detail
+        }
+    }
+
+    private var failedCount: Int? {
+        guard case .warning(_, let detail, _) = state,
+              let detail,
+              detail.hasPrefix("更新失败：") else { return nil }
+
+        let codes = detail
+            .replacingOccurrences(of: "更新失败：", with: "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return codes.isEmpty ? nil : codes.count
     }
 
     private var systemImage: String {
@@ -298,21 +343,85 @@ private struct AllocationRow: View {
     var hidden = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Label(allocation.type.title, systemImage: allocation.type.systemImage)
-                    .foregroundStyle(allocation.type.accentColor)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(allocation.type.subduedAccentColor)
                 Spacer()
                 Text(FinanceFormatters.percent(allocation.percent))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
             ProgressView(value: allocation.percent)
-                .tint(allocation.type.accentColor)
+                .tint(allocation.type.subduedAccentColor.opacity(0.65))
+                .scaleEffect(x: 1, y: 0.55, anchor: .center)
             Text(hidden ? "****" : FinanceFormatters.currency(allocation.value))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
         }
+    }
+}
+
+private struct AllocationStrip: View {
+    let allocations: [AssetAllocation]
+
+    var body: some View {
+        GeometryReader { proxy in
+            let spacing = CGFloat(max(allocations.count - 1, 0)) * 3
+            let availableWidth = max(0, proxy.size.width - spacing)
+
+            HStack(spacing: 3) {
+                ForEach(allocations) { allocation in
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(allocation.type.subduedAccentColor.opacity(0.72))
+                        .frame(width: max(4, availableWidth * allocation.percent))
+                }
+            }
+        }
+        .frame(height: 10)
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .accessibilityLabel("资产分布")
+    }
+}
+
+private struct MoverRow: View {
+    let item: AssetPerformance
+    let dailyProfitLoss: Double
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: item.asset.type.systemImage)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(item.asset.type.subduedAccentColor)
+                .frame(width: 30, height: 30)
+                .background(Color(.quaternarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.asset.name)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(item.asset.displayCode)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(FinanceFormatters.signedValueWithSymbol(dailyProfitLoss, symbol: item.asset.currencySymbol))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(FinanceFormatters.profitColor(dailyProfitLoss))
+                Text(FinanceFormatters.valueWithSymbol(item.currentValue, symbol: item.asset.currencySymbol))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .monospacedDigit()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: action)
     }
 }
