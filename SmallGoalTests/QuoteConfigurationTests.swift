@@ -472,6 +472,184 @@ final class QuoteConfigurationTests: XCTestCase {
 	        XCTAssertEqual(tencent?.name, "腾讯控股")
 	    }
 
+    func testMXDataPayloadCombinesSnapshotAndPreviousCloseTables() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "景顺长城中证港股通科技ETF",
+                                "secuCode": "513980"
+                            ],
+                            [
+                                "fullName": "贵州茅台",
+                                "secuCode": "600519"
+                            ],
+                            [
+                                "fullName": "腾讯控股",
+                                "secuCode": "00700"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "code": "513980.SH",
+                                "entityName": "2026-06-03 22:12",
+                                "table": [
+                                    "f2": ["0.646", "1281.91", "466.400"],
+                                    "f3": ["-2.12%", "-1.94%", "-3.16%"],
+                                    "headName": [
+                                        "景顺长城中证港股通科技ETF(513980.SH)",
+                                        "贵州茅台(600519.SH)",
+                                        "腾讯控股(00700.HK)"
+                                    ]
+                                ],
+                                "nameMap": [
+                                    "f2": "最新价",
+                                    "f3": "涨跌幅"
+                                ]
+                            ],
+                            [
+                                "code": "600519.SH",
+                                "entityName": "贵州茅台(600519.SH)",
+                                "table": [
+                                    "325898": ["1281.91元"],
+                                    "326865": ["-1.936%"],
+                                    "326752": ["1307.22元"],
+                                    "headName": ["2026-06-03(日)"]
+                                ],
+                                "rawTable": [
+                                    "325898": ["1281.91"],
+                                    "326865": ["-0.01936169887241623"],
+                                    "326752": ["1307.22"],
+                                    "headName": ["2026-06-03"]
+                                ],
+                                "nameMap": [
+                                    "325898": "收盘价",
+                                    "326865": "涨跌幅",
+                                    "326752": "前收盘价"
+                                ]
+                            ],
+                            [
+                                "code": "00700.HK",
+                                "entityName": "腾讯控股(00700.HK)",
+                                "table": [
+                                    "325898": ["466.4港元"],
+                                    "326865": ["-3.156%"],
+                                    "326752": ["481.6港元"],
+                                    "headName": ["2026-06-03(日)"]
+                                ],
+                                "rawTable": [
+                                    "325898": ["466.4"],
+                                    "326865": ["-0.03156146179402003"],
+                                    "326752": ["481.6"],
+                                    "headName": ["2026-06-03"]
+                                ],
+                                "nameMap": [
+                                    "325898": "收盘价",
+                                    "326865": "涨跌幅",
+                                    "326752": "前收盘价"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quotes = try MXDataQuoteProvider.parseQuotes(from: payload)
+
+        XCTAssertEqual(quotes.count, 3)
+        let etf = quotes.first { $0.code == "513980" }
+        let moutai = quotes.first { $0.code == "600519" }
+        let tencent = quotes.first { $0.code == "00700" }
+        XCTAssertEqual(etf?.latestPrice ?? 0, 0.646, accuracy: 0.0001)
+        XCTAssertEqual(etf?.changePercent ?? 0, -0.0212, accuracy: 0.0001)
+        // 昨收从涨跌幅反推: 0.646 / (1 - 0.0212) ≈ 0.66
+        XCTAssertEqual(etf?.previousClose ?? 0, 0.66, accuracy: 0.001)
+        XCTAssertEqual(moutai?.latestPrice ?? 0, 1281.91, accuracy: 0.001)
+        XCTAssertEqual(moutai?.previousClose ?? 0, 1307.22, accuracy: 0.001)
+        XCTAssertEqual(tencent?.latestPrice ?? 0, 466.4, accuracy: 0.001)
+        XCTAssertEqual(tencent?.previousClose ?? 0, 481.6, accuracy: 0.001)
+
+        let calendar = Calendar(identifier: .gregorian)
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: moutai?.quoteTime ?? .distantPast)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 6)
+        XCTAssertEqual(components.day, 3)
+        XCTAssertEqual(components.hour, 22)
+        XCTAssertEqual(components.minute, 12)
+    }
+
+    func testMXDataIgnoresPercentageRateAsChangeAmount() throws {
+        // 基金 DTO 中的"复权单位净值增长率"是百分比，不应被当作涨跌额使用
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "景顺长城中证港股通科技ETF",
+                                "secuCode": "513980"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "code": "513980.SH",
+                                "entityName": "2026-06-03 22:12",
+                                "table": [
+                                    "f2": ["0.646"],
+                                    "f3": ["-2.12%"],
+                                    "headName": [
+                                        "景顺长城中证港股通科技ETF(513980.SH)"
+                                    ]
+                                ],
+                                "nameMap": [
+                                    "f2": "最新价",
+                                    "f3": "涨跌幅"
+                                ]
+                            ],
+                            [
+                                "code": "513980.SH",
+                                "entityName": "景顺长城中证港股通科技ETF(513980.SH)",
+                                "table": [
+                                    "325898": ["0.646元", "0.66元"],
+                                    "326229": ["-2.749%", "3.97%"],
+                                    "headName": ["2026-06-03(日)", "2026-06-02(日)"]
+                                ],
+                                "rawTable": [
+                                    "325898": ["0.646", "0.66"],
+                                    "326229": ["-2.749", "3.97"],
+                                    "headName": ["2026-06-03", "2026-06-02"]
+                                ],
+                                "nameMap": [
+                                    "325898": "收盘价",
+                                    "326229": "复权单位净值增长率"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quotes = try MXDataQuoteProvider.parseQuotes(from: payload)
+
+        XCTAssertEqual(quotes.count, 1)
+        let etf = quotes[0]
+        XCTAssertEqual(etf.code, "513980")
+        XCTAssertEqual(etf.latestPrice, 0.646, accuracy: 0.0001)
+        // 涨跌幅来自快照 f3: -2.12%
+        XCTAssertEqual(etf.changePercent, -0.0212, accuracy: 0.0001)
+        // 昨收应由涨跌幅反推: 0.646 / (1 - 0.0212) ≈ 0.66
+        // 而不应被"复权单位净值增长率"(-2.749%)错误地当作涨跌额计算出 3.395
+        XCTAssertEqual(etf.previousClose, 0.66, accuracy: 0.001)
+        // 涨跌额 = 0.646 - 0.66 = -0.014
+        XCTAssertEqual(etf.changeAmount, -0.014, accuracy: 0.001)
+    }
+
 	    func testHKStockReturnsCorrectCurrency() {
 	        let hkStock = Asset(type: .stock, name: "腾讯", code: "00700", market: "HK", quantityOrAmount: 100, cost: 380)
 	        let cnStock = Asset(type: .stock, name: "茅台", code: "600519", market: "CN", quantityOrAmount: 100, cost: 1326)

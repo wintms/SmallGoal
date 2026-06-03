@@ -133,11 +133,13 @@ struct MXDataQuoteProvider: QuoteProvider {
             }
             dtosByCode[normalized, default: []].append(dto)
         }
+        let snapshotRowsByCode = quoteSnapshotRowsByCode(from: dtos)
         print("[MXData] 分组后代码: \(Array(dtosByCode.keys).sorted())")
 
         var quotes: [Quote] = []
-        for (code, groupedDTOs) in dtosByCode {
-            let rows = groupedDTOs.flatMap { tableRows(from: $0) }
+        for code in Set(dtosByCode.keys).union(snapshotRowsByCode.keys).sorted() {
+            let groupedDTOs = dtosByCode[code] ?? []
+            let rows = (snapshotRowsByCode[code] ?? []) + groupedDTOs.flatMap { tableRows(from: $0) }
             guard !rows.isEmpty else { continue }
             let entity = entityByCode[code] ?? (code, code)
             let fields = mergedFields(from: rows)
@@ -163,6 +165,48 @@ struct MXDataQuoteProvider: QuoteProvider {
         return quotes
     }
 
+    private static func quoteSnapshotRowsByCode(from dtos: [[String: Any]]) -> [String: [[String: String]]] {
+        var rowsByCode: [String: [[String: String]]] = [:]
+
+        for dto in dtos {
+            guard
+                let table = dto["table"] as? [String: Any],
+                let headers = table["headName"] as? [Any],
+                let latestValues = table["f2"] as? [Any]
+            else {
+                continue
+            }
+
+            let changeValues = table["f3"] as? [Any] ?? []
+            let quoteDate = stringValue(dto["entityName"])
+                .flatMap(dateValue)
+                .map { dateString($0) }
+                ?? stringValue(dto["entityName"])
+
+            for (index, header) in headers.enumerated() {
+                guard
+                    let code = codeInEntityHeader(flatten(header)),
+                    index < latestValues.count
+                else {
+                    continue
+                }
+
+                var row: [String: String] = [
+                    "最新价": flatten(latestValues[index])
+                ]
+                if index < changeValues.count {
+                    row["涨跌幅"] = flatten(changeValues[index])
+                }
+                if let quoteDate {
+                    row["date"] = quoteDate
+                }
+                rowsByCode[code, default: []].append(row)
+            }
+        }
+
+        return rowsByCode
+    }
+
     private static func quoteFrom(fields: [String: String], code: String, name: String) throws -> Quote {
         guard let latestPrice = firstDouble(in: fields, matching: latestPriceCandidates) else {
             let availableFields = fields.keys.sorted().prefix(12).joined(separator: "、")
@@ -170,7 +214,14 @@ struct MXDataQuoteProvider: QuoteProvider {
             throw QuoteProviderError.invalidPayload("妙想接口未返回最新价\(suffix)")
         }
 
-        let changeAmountFromField = firstDouble(in: fields, matching: ["涨跌额", "涨跌值", "涨跌金额", "涨跌价", "区间单位净值增长", "复权单位净值增长"])
+        let changeAmountFromField: Double? = {
+            if let raw = firstValue(in: fields, matching: ["涨跌额", "涨跌值", "涨跌金额", "涨跌价", "区间单位净值增长", "复权单位净值增长"]),
+               !raw.contains("%"),
+               let value = doubleValue(raw) {
+                return value
+            }
+            return nil
+        }()
         let previousCloseFromField = firstDouble(in: fields, matching: ["昨收", "昨收价", "前收盘", "前收", "昨日收盘价"])
         let changePercentFromField = firstPercent(in: fields, matching: ["涨跌幅", "涨幅", "跌幅", "涨跌比例", "区间单位净值增长率", "净值增长率"])
 
@@ -446,6 +497,24 @@ struct MXDataQuoteProvider: QuoteProvider {
             if let date = formatter.date(from: value) {
                 return date
             }
+        }
+        return nil
+    }
+
+    private static func dateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter.string(from: date)
+    }
+
+    private static func codeInEntityHeader(_ value: String) -> String? {
+        if let range = value.range(
+            of: #"\(([0-9]{5,6})(?:\.[A-Z]+)?\)"#,
+            options: .regularExpression
+        ) {
+            return normalizedCode(String(value[range]))
         }
         return nil
     }
