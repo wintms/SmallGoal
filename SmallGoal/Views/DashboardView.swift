@@ -13,12 +13,20 @@ struct DashboardView: View {
         PortfolioCalculator.snapshot(for: assets)
     }
 
+    private var investedPerformances: [AssetPerformance] {
+        performances.filter { $0.asset.type != .cash }
+    }
+
     private var dashboardDailyProfitLoss: Double {
-        performances.reduce(0) { $0 + dashboardDailyProfitLoss(for: $1) * cnyRate(for: $1.asset) }
+        investedPerformances.reduce(0) { $0 + dashboardDailyProfitLoss(for: $1) * cnyRate(for: $1.asset) }
+    }
+
+    private var dashboardCumulativeProfitLoss: Double {
+        investedPerformances.reduce(0) { $0 + $1.cumulativeProfitLoss * cnyRate(for: $1.asset) }
     }
 
     private var movers: [AssetPerformance] {
-        performances
+        investedPerformances
             .sorted { abs(dashboardDailyProfitLoss(for: $0)) > abs(dashboardDailyProfitLoss(for: $1)) }
             .prefix(5)
             .map { $0 }
@@ -50,6 +58,7 @@ struct DashboardView: View {
                 summaryHeader
                 allocationSection
                 dailyContributionSection
+                moversSection
             }
             .listStyle(.insetGrouped)
             .listSectionSpacing(18)
@@ -117,8 +126,8 @@ struct DashboardView: View {
                 )
                 MetricTile(
                     title: "累计盈亏",
-                    value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(snapshot.cumulativeProfitLoss),
-                    tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(snapshot.cumulativeProfitLoss),
+                    value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(dashboardCumulativeProfitLoss),
+                    tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(dashboardCumulativeProfitLoss),
                     subtitle: isTotalHidden ? nil : cumulativeReturnRate()
                 )
             }
@@ -152,8 +161,8 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionTitle("今日盈亏来源")
 
-            ForEach(AssetType.allCases) { type in
-                let contribution = performances
+            ForEach(AssetType.allCases.filter { $0 != .cash }) { type in
+                let contribution = investedPerformances
                     .filter { $0.asset.type == type }
                     .reduce(0) { $0 + dashboardDailyProfitLoss(for: $1) * cnyRate(for: $1.asset) }
 
@@ -168,11 +177,14 @@ struct DashboardView: View {
                 }
                 .font(.subheadline)
             }
+        }
+        .padding(.vertical, 6)
+    }
 
-            if !performances.isEmpty {
-                Divider()
-                    .padding(.vertical, 2)
-
+    @ViewBuilder
+    private var moversSection: some View {
+        if !performances.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
                 DisclosureGroup(isExpanded: $showsMovers) {
                     VStack(spacing: 14) {
                         ForEach(movers) { item in
@@ -194,8 +206,8 @@ struct DashboardView: View {
                     }
                 }
             }
+            .padding(.vertical, 6)
         }
-        .padding(.vertical, 6)
     }
 
     private func dailyReturnRate() -> String? {
@@ -207,9 +219,9 @@ struct DashboardView: View {
     }
 
     private func cumulativeReturnRate() -> String? {
-        let base = snapshot.totalValue - snapshot.cumulativeProfitLoss
+        let base = snapshot.totalValue - dashboardCumulativeProfitLoss
         guard base > 0 else { return nil }
-        let rate = snapshot.cumulativeProfitLoss / base
+        let rate = dashboardCumulativeProfitLoss / base
         let prefix = rate > 0 ? "+" : ""
         return prefix + rate.formatted(.percent.precision(.fractionLength(2)))
     }
