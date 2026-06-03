@@ -184,16 +184,13 @@ struct DashboardView: View {
     @ViewBuilder
     private var moversSection: some View {
         if !performances.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                DisclosureGroup(isExpanded: $showsMovers) {
-                    VStack(spacing: 14) {
-                        ForEach(movers) { item in
-                            MoverRow(item: item, dailyProfitLoss: dashboardDailyProfitLoss(for: item)) {
-                                selectedAsset = item.asset
-                            }
-                        }
+            VStack(alignment: .leading, spacing: 0) {
+                Button {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        showsMovers.toggle()
                     }
-                    .padding(.top, 10)
                 } label: {
                     HStack {
                         Text("主要持仓变动")
@@ -203,10 +200,27 @@ struct DashboardView: View {
                         Text("\(movers.count) 项")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(showsMovers ? 90 : 0))
                     }
+                }
+                .buttonStyle(.plain)
+
+                if showsMovers {
+                    VStack(spacing: 14) {
+                        ForEach(movers) { item in
+                            MoverRow(item: item, dailyProfitLoss: dashboardDailyProfitLoss(for: item)) {
+                                selectedAsset = item.asset
+                            }
+                        }
+                    }
+                    .padding(.top, 14)
                 }
             }
             .padding(.vertical, 6)
+            .animation(.none, value: showsMovers)
         }
     }
 
