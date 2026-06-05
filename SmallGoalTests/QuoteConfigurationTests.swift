@@ -472,6 +472,348 @@ final class QuoteConfigurationTests: XCTestCase {
 	        XCTAssertEqual(tencent?.name, "腾讯控股")
 	    }
 
+    func testMXDataBatchInfersMissingDTOCodeFromSingleEntity() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "贵州茅台",
+                                "secuCode": "600519"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "entityName": "贵州茅台",
+                                "table": [
+                                    "headName": ["2026-06-03(日)"],
+                                    "1": ["1281.91元"],
+                                    "2": ["1307.22元"],
+                                    "3": ["-1.936%"]
+                                ],
+                                "nameMap": [
+                                    "1": "收盘价",
+                                    "2": "前收盘价",
+                                    "3": "涨跌幅"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quotes = try MXDataQuoteProvider.parseQuotes(from: payload)
+
+        XCTAssertEqual(quotes.count, 1)
+        XCTAssertEqual(quotes[0].code, "600519")
+        XCTAssertEqual(quotes[0].name, "贵州茅台")
+        XCTAssertEqual(quotes[0].latestPrice, 1281.91, accuracy: 0.001)
+        XCTAssertEqual(quotes[0].previousClose, 1307.22, accuracy: 0.001)
+    }
+
+    func testMXDataBatchInfersMissingDTOCodeFromEntityTagDTO() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "贵州茅台",
+                                "secuCode": "600519"
+                            ],
+                            [
+                                "fullName": "腾讯控股",
+                                "secuCode": "00700"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "entityTagDTO": [
+                                    "secuCode": "00700"
+                                ],
+                                "table": [
+                                    "headName": ["2026/06/03"],
+                                    "1": ["466.4港元"],
+                                    "2": ["481.6港元"],
+                                    "3": ["-3.156%"]
+                                ],
+                                "nameMap": [
+                                    "1": "收盘价",
+                                    "2": "前收盘价",
+                                    "3": "涨跌幅"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quotes = try MXDataQuoteProvider.parseQuotes(from: payload)
+
+        XCTAssertEqual(quotes.count, 1)
+        XCTAssertEqual(quotes[0].code, "00700")
+        XCTAssertEqual(quotes[0].name, "腾讯控股")
+        XCTAssertEqual(quotes[0].latestPrice, 466.4, accuracy: 0.001)
+    }
+
+    func testMXDataUsesIndicatorOrderBeforeLexicalKeyOrder() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "测试基金",
+                                "secuCode": "008975"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "table": [
+                                    "headName": ["2026-06-03", "2026-06-02"],
+                                    "1": ["0.99", "1.00"],
+                                    "2": ["1.10", "1.09"]
+                                ],
+                                "nameMap": [
+                                    "1": "单位净值",
+                                    "2": "最新净值"
+                                ],
+                                "indicatorOrder": ["2", "1"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quote = try MXDataQuoteProvider.parseQuote(from: payload, fallbackCode: "008975")
+
+        XCTAssertEqual(quote.latestPrice, 1.10, accuracy: 0.001)
+    }
+
+    func testMXDataParsesExpandedFieldAliasesAndDateFormats() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "贵州茅台",
+                                "secuCode": "600519"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "entityName": "贵州茅台 600519.SH",
+                                "table": [
+                                    "headName": ["2026/06/03 15:00(日)"],
+                                    "1": ["1281.91元"],
+                                    "2": ["1307.22元"],
+                                    "3": ["-1.936%"]
+                                ],
+                                "nameMap": [
+                                    "1": "当前价格",
+                                    "2": "昨日收盘",
+                                    "3": "涨跌比率"
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quote = try MXDataQuoteProvider.parseQuote(from: payload, fallbackCode: "600519")
+        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour, .minute], from: quote.quoteTime)
+
+        XCTAssertEqual(quote.latestPrice, 1281.91, accuracy: 0.001)
+        XCTAssertEqual(quote.previousClose, 1307.22, accuracy: 0.001)
+        XCTAssertEqual(quote.changePercent, -0.01936, accuracy: 0.0001)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 6)
+        XCTAssertEqual(components.day, 3)
+        XCTAssertEqual(components.hour, 15)
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testMXDataParsesCondensedRealPayloadWithoutMixingFundDates() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "景顺长城中证港股通科技交易型开放式指数证券投资基金",
+                                "shortName": "景顺长城中证港股通科技ETF",
+                                "secuCode": "513980"
+                            ],
+                            [
+                                "fullName": "贵州茅台",
+                                "secuCode": "600519"
+                            ],
+                            [
+                                "fullName": "腾讯控股",
+                                "secuCode": "00700"
+                            ],
+                            [
+                                "fullName": "富国中证消费50交易型开放式指数证券投资基金联接基金",
+                                "shortName": "富国中证消费50ETF联接A",
+                                "secuCode": "008975"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "code": "513980.SH",
+                                "entityName": "2026-06-05 22:16",
+                                "table": [
+                                    "f4": ["-0.009", "4.86", "-5.8"],
+                                    "f2": ["0.625", "1272.86", "453.200"],
+                                    "f3": ["-1.42%", "0.38%", "-1.26%"],
+                                    "headName": [
+                                        "景顺长城中证港股通科技ETF(513980.SH)",
+                                        "贵州茅台(600519.SH)",
+                                        "腾讯控股(00700.HK)"
+                                    ]
+                                ],
+                                "nameMap": [
+                                    "f4": "涨跌额",
+                                    "f2": "最新价",
+                                    "f3": "涨跌幅"
+                                ],
+                                "indicatorOrder": ["f4", "f2", "f3"]
+                            ],
+                            [
+                                "code": "513980.SH",
+                                "entityName": "景顺长城中证港股通科技ETF(513980.SH)",
+                                "table": [
+                                    "325898": ["0.625元", "0.634元"],
+                                    "326752": ["0.634元", "0.646元"],
+                                    "326229": ["-1.618%", "-1.772%"],
+                                    "headName": ["2026-06-05(日)", "2026-06-04(日)"]
+                                ],
+                                "rawTable": [
+                                    "325898": ["0.625", "0.634"],
+                                    "326752": ["0.634", "0.646"],
+                                    "326229": ["-0.016176699331156", "-0.017723453017571"],
+                                    "headName": ["2026-06-05", "2026-06-04"]
+                                ],
+                                "nameMap": [
+                                    "325898": "收盘价",
+                                    "326752": "前收盘价",
+                                    "326229": "复权单位净值增长率"
+                                ],
+                                "indicatorOrder": ["325898", "326752", "326229"]
+                            ],
+                            [
+                                "code": "600519.SH",
+                                "entityName": "贵州茅台(600519.SH)",
+                                "table": [
+                                    "325898": ["1272.86元"],
+                                    "326865": ["0.3833%"],
+                                    "headName": ["2026-06-05(日)"]
+                                ],
+                                "rawTable": [
+                                    "325898": ["1272.86"],
+                                    "326865": ["0.003832807570977839"],
+                                    "headName": ["2026-06-05"]
+                                ],
+                                "nameMap": [
+                                    "325898": "收盘价",
+                                    "326865": "涨跌幅"
+                                ],
+                                "indicatorOrder": ["325898", "326865"]
+                            ],
+                            [
+                                "code": "00700.HK",
+                                "entityName": "腾讯控股(00700.HK)",
+                                "table": [
+                                    "325898": ["453.2港元"],
+                                    "326865": ["-1.264%"],
+                                    "headName": ["2026-06-05(日)"]
+                                ],
+                                "rawTable": [
+                                    "325898": ["453.2"],
+                                    "326865": ["-0.012636165577342073"],
+                                    "headName": ["2026-06-05"]
+                                ],
+                                "nameMap": [
+                                    "325898": "收盘价",
+                                    "326865": "涨跌幅"
+                                ],
+                                "indicatorOrder": ["325898", "326865"]
+                            ],
+                            [
+                                "code": "008975.OF",
+                                "entityName": "富国中证消费50ETF联接A(008975.OF)",
+                                "table": [
+                                    "326229": ["0.00912%", "-1.305%"],
+                                    "headName": ["2026-06-05(日)", "2026-06-04(日)"]
+                                ],
+                                "rawTable": [
+                                    "326229": ["0.000091199270406", "-0.013051305130513"],
+                                    "headName": ["2026-06-05", "2026-06-04"]
+                                ],
+                                "nameMap": [
+                                    "326229": "复权单位净值增长率"
+                                ],
+                                "indicatorOrder": ["326229"]
+                            ],
+                            [
+                                "code": "008975.OF",
+                                "entityName": "富国中证消费50ETF联接A(008975.OF)",
+                                "table": [
+                                    "100000000002918": ["-", "1.097元"],
+                                    "100000000019139": ["0.00912%", "-1.305%"],
+                                    "headName": ["2026-06-05", "2026-06-04"]
+                                ],
+                                "rawTable": [
+                                    "100000000002918": ["-", "1.0965"],
+                                    "100000000019139": ["0.009119927040584", "-1.305130513051305"],
+                                    "headName": ["2026-06-05", "2026-06-04"]
+                                ],
+                                "nameMap": [
+                                    "100000000002918": "单位净值",
+                                    "100000000019139": "单位净值增长率"
+                                ],
+                                "indicatorOrder": ["100000000002918", "100000000019139"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quotes = try MXDataQuoteProvider.parseQuotes(from: payload)
+
+        XCTAssertEqual(quotes.count, 4)
+        let etf = quotes.first { $0.code == "513980" }
+        let moutai = quotes.first { $0.code == "600519" }
+        let tencent = quotes.first { $0.code == "00700" }
+        let fund = quotes.first { $0.code == "008975" }
+        XCTAssertEqual(etf?.latestPrice ?? 0, 0.625, accuracy: 0.0001)
+        XCTAssertEqual(etf?.previousClose ?? 0, 0.634, accuracy: 0.0001)
+        XCTAssertEqual(moutai?.latestPrice ?? 0, 1272.86, accuracy: 0.001)
+        XCTAssertEqual(moutai?.changePercent ?? 0, 0.0038, accuracy: 0.0001)
+        XCTAssertEqual(tencent?.latestPrice ?? 0, 453.2, accuracy: 0.001)
+        XCTAssertEqual(tencent?.changePercent ?? 0, -0.0126, accuracy: 0.0001)
+        XCTAssertEqual(fund?.latestPrice ?? 0, 1.0965, accuracy: 0.0001)
+        XCTAssertEqual(fund?.changePercent ?? 0, -0.01305, accuracy: 0.0001)
+
+        let fundDate = Calendar(identifier: .gregorian)
+            .dateComponents([.year, .month, .day], from: fund?.quoteTime ?? .distantPast)
+        XCTAssertEqual(fundDate.year, 2026)
+        XCTAssertEqual(fundDate.month, 6)
+        XCTAssertEqual(fundDate.day, 4)
+    }
+
     func testMXDataPayloadCombinesSnapshotAndPreviousCloseTables() throws {
         let payload: [String: Any] = [
             "status": 0,

@@ -55,7 +55,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             List {
-                summaryHeader
+                totalAssetsSection
                 allocationSection
                 dailyContributionSection
                 moversSection
@@ -88,97 +88,103 @@ struct DashboardView: View {
         }
     }
 
-    private var summaryHeader: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text("总资产")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Button {
-                            isTotalHidden.toggle()
-                        } label: {
-                            Image(systemName: isTotalHidden ? "eye.slash" : "eye")
+    private var totalAssetsSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text("总资产")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                            Button {
+                                isTotalHidden.toggle()
+                            } label: {
+                                Image(systemName: isTotalHidden ? "eye.slash" : "eye")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        Text(isTotalHidden ? "****" : FinanceFormatters.totalCurrency(snapshot.totalValue))
+                            .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                            .monospacedDigit()
+                            .minimumScaleFactor(0.7)
                     }
-                    Text(isTotalHidden ? "****" : FinanceFormatters.totalCurrency(snapshot.totalValue))
-                        .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-                        .monospacedDigit()
-                        .minimumScaleFactor(0.7)
+                    Spacer()
+                    Image(systemName: "wallet.pass")
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 38, height: 38)
+                        .background(Color(.quaternarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                Spacer()
-                Image(systemName: dashboardDailyProfitLoss >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(isTotalHidden ? .secondary : FinanceFormatters.profitColor(dashboardDailyProfitLoss))
-                    .frame(width: 38, height: 38)
-                    .background(Color(.quaternarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
 
-            HStack(spacing: 12) {
-                MetricTile(
-                    title: "今日盈亏",
-                    value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(dashboardDailyProfitLoss),
-                    tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(dashboardDailyProfitLoss),
-                    subtitle: isTotalHidden ? nil : dailyReturnRate()
-                )
-                MetricTile(
-                    title: "累计盈亏",
-                    value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(dashboardCumulativeProfitLoss),
-                    tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(dashboardCumulativeProfitLoss),
-                    subtitle: isTotalHidden ? nil : cumulativeReturnRate()
-                )
-            }
+                HStack(spacing: 12) {
+                    MetricTile(
+                        title: "今日盈亏",
+                        value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(dashboardDailyProfitLoss),
+                        tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(dashboardDailyProfitLoss),
+                        subtitle: isTotalHidden ? nil : dailyReturnRate()
+                    )
+                    MetricTile(
+                        title: "累计盈亏",
+                        value: isTotalHidden ? "****" : FinanceFormatters.signedCurrency(dashboardCumulativeProfitLoss),
+                        tint: isTotalHidden ? .secondary : FinanceFormatters.profitColor(dashboardCumulativeProfitLoss),
+                        subtitle: isTotalHidden ? nil : cumulativeReturnRate()
+                    )
+                }
 
-            QuoteStatusLine(state: dashboardQuoteState)
+                QuoteStatusLine(state: dashboardQuoteState)
+            }
+            .padding(.vertical, 8)
         }
-        .padding(.vertical, 6)
     }
 
     private var allocationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionTitle("资产分布")
-
-            if snapshot.totalValue <= 0 {
-                ContentUnavailableView("暂无资产", systemImage: "tray", description: Text("添加股票、基金、理财或现金后会显示分布。"))
-                    .frame(minHeight: 160)
-            } else {
-                VStack(spacing: 14) {
+        Section {
+            VStack(alignment: .leading, spacing: 14) {
+                if snapshot.totalValue <= 0 {
+                    ContentUnavailableView("暂无资产", systemImage: "tray", description: Text("添加股票、基金、理财或现金后会显示分布。"))
+                        .frame(minHeight: 160)
+                } else {
                     AllocationStrip(allocations: snapshot.assetAllocation.filter { $0.value > 0 })
 
-                    ForEach(snapshot.assetAllocation.filter { $0.value > 0 }) { allocation in
-                        AllocationRow(allocation: allocation, hidden: isTotalHidden)
+                    VStack(spacing: 14) {
+                        ForEach(snapshot.assetAllocation.filter { $0.value > 0 }) { allocation in
+                            AllocationRow(allocation: allocation, hidden: isTotalHidden)
+                        }
                     }
                 }
             }
+            .padding(.vertical, 8)
+        } header: {
+            Text("资产分布")
         }
-        .padding(.vertical, 6)
     }
 
     private var dailyContributionSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionTitle("今日盈亏来源")
+        Section {
+            VStack(spacing: 14) {
+                ForEach(AssetType.allCases.filter { $0 != .cash }) { type in
+                    let contribution = investedPerformances
+                        .filter { $0.asset.type == type }
+                        .reduce(0) { $0 + dashboardDailyProfitLoss(for: $1) * cnyRate(for: $1.asset) }
 
-            ForEach(AssetType.allCases.filter { $0 != .cash }) { type in
-                let contribution = investedPerformances
-                    .filter { $0.asset.type == type }
-                    .reduce(0) { $0 + dashboardDailyProfitLoss(for: $1) * cnyRate(for: $1.asset) }
-
-                HStack {
-                    Label(type.title, systemImage: type.systemImage)
-                        .foregroundStyle(type.subduedAccentColor)
-                        .font(.subheadline.weight(.medium))
-                    Spacer()
-                    Text(FinanceFormatters.signedCurrency(contribution))
-                        .foregroundStyle(FinanceFormatters.profitColor(contribution))
-                        .monospacedDigit()
+                    HStack {
+                        Label(type.title, systemImage: type.systemImage)
+                            .foregroundStyle(type.subduedAccentColor)
+                            .font(.subheadline.weight(.medium))
+                        Spacer()
+                        Text(isTotalHidden ? "****" : FinanceFormatters.signedCurrency(contribution))
+                            .foregroundStyle(isTotalHidden ? .secondary : FinanceFormatters.profitColor(contribution))
+                            .monospacedDigit()
+                    }
+                    .font(.subheadline)
                 }
-                .font(.subheadline)
             }
+            .padding(.vertical, 8)
+        } header: {
+            Text("今日盈亏来源")
         }
-        .padding(.vertical, 6)
     }
 
     @ViewBuilder
@@ -348,19 +354,6 @@ private struct QuoteStatusLine: View {
         case .failure:
             .red
         }
-    }
-}
-
-private struct SectionTitle: View {
-    let title: String
-
-    init(_ title: String) {
-        self.title = title
-    }
-
-    var body: some View {
-        Text(title)
-            .font(.headline)
     }
 }
 

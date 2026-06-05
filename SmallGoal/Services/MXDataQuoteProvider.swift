@@ -103,7 +103,9 @@ struct MXDataQuoteProvider: QuoteProvider {
         let searchResult = (((payload["data"] as? [String: Any])?["data"] as? [String: Any])?["searchDataResultDTO"] as? [String: Any])
         guard let searchResult else { throw QuoteProviderError.invalidResponse }
 
-        let dtos = searchResult["dataTableDTOList"] as? [[String: Any]] ?? []
+        let dtos = (searchResult["dataTableDTOList"] as? [[String: Any]])
+            ?? (searchResult["rawDataTableDTOList"] as? [[String: Any]])
+            ?? []
         guard !dtos.isEmpty else {
             throw QuoteProviderError.invalidPayload("妙想接口未返回有效行情表格")
         }
@@ -125,10 +127,10 @@ struct MXDataQuoteProvider: QuoteProvider {
         print("[MXData] API返回DTO代码: \(rawDTOCodes)")
 
         var dtosByCode: [String: [[String: Any]]] = [:]
+        let singleEntityCode = entityByCode.count == 1 ? entityByCode.keys.first : nil
         for dto in dtos {
-            guard let dtoCode = stringValue(dto["code"]),
-                  let normalized = normalizedCode(dtoCode) else {
-                print("[MXData] ⚠️ 跳过DTO, code=\(stringValue(dto["code"]) ?? "nil")")
+            guard let normalized = codeForDTO(dto, singleEntityCode: singleEntityCode) else {
+                print("[MXData] ⚠️ 跳过DTO, code=\(stringValue(dto["code"]) ?? stringValue(dto["entityName"]) ?? "nil")")
                 continue
             }
             dtosByCode[normalized, default: []].append(dto)
@@ -215,15 +217,15 @@ struct MXDataQuoteProvider: QuoteProvider {
         }
 
         let changeAmountFromField: Double? = {
-            if let raw = firstValue(in: fields, matching: ["涨跌额", "涨跌值", "涨跌金额", "涨跌价", "区间单位净值增长", "复权单位净值增长"]),
+            if let raw = firstValue(in: fields, matching: changeAmountCandidates),
                !raw.contains("%"),
                let value = doubleValue(raw) {
                 return value
             }
             return nil
         }()
-        let previousCloseFromField = firstDouble(in: fields, matching: ["昨收", "昨收价", "前收盘", "前收", "昨日收盘价"])
-        let changePercentFromField = firstPercent(in: fields, matching: ["涨跌幅", "涨幅", "跌幅", "涨跌比例", "区间单位净值增长率", "净值增长率"])
+        let previousCloseFromField = firstDouble(in: fields, matching: previousCloseCandidates)
+        let changePercentFromField = firstPercent(in: fields, matching: changePercentCandidates)
 
         let changeAmount: Double
         let previousClose: Double
@@ -288,7 +290,7 @@ struct MXDataQuoteProvider: QuoteProvider {
         }
 
         let headers = table["headName"] as? [Any] ?? []
-        let dataKeys = table.keys.filter { $0 != "headName" }.sorted()
+        let dataKeys = orderedDataKeys(in: table, dto: dto)
         let nameMap = normalizedNameMap(dto["nameMap"])
         let codeMap = returnCodeMap(dto)
 
@@ -345,12 +347,56 @@ struct MXDataQuoteProvider: QuoteProvider {
         return (code, name)
     }
 
+    private static func codeForDTO(_ dto: [String: Any], singleEntityCode: String?) -> String? {
+        if let code = stringValue(dto["code"]).flatMap(normalizedCode) {
+            return code
+        }
+        if let code = codeFromEntity(dto["entityTagDTO"]) {
+            return code
+        }
+        if let entities = dto["entityTagDTOList"] as? [[String: Any]],
+           entities.count == 1,
+           let code = codeFromEntity(entities[0]) {
+            return code
+        }
+        if let code = stringValue(dto["entityName"]).flatMap(codeInEntityHeader) {
+            return code
+        }
+        return singleEntityCode
+    }
+
+    private static func codeFromEntity(_ rawEntity: Any?) -> String? {
+        guard let entity = rawEntity as? [String: Any] else { return nil }
+        return (stringValue(entity["secuCode"])
+            ?? stringValue(entity["code"])
+            ?? stringValue(entity["securityCode"]))
+            .flatMap(normalizedCode)
+    }
+
     private static func isPlaceholder(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespaces)
         return trimmed == "-" || trimmed == "--" || trimmed == "N/A" || trimmed.isEmpty
     }
 
     private static func mergedFields(from rows: [[String: String]]) -> [String: String] {
+        guard let anchorIndex = rows.firstIndex(where: hasLatestPrice) else {
+            return mergeRows(rows)
+        }
+
+        let anchorRow = rows[anchorIndex]
+        guard let anchorDay = dayKey(in: anchorRow) else {
+            return mergeRows(rows)
+        }
+
+        let compatibleRows = rows.enumerated().compactMap { index, row -> [String: String]? in
+            guard index != anchorIndex else { return nil }
+            guard let rowDay = dayKey(in: row) else { return row }
+            return rowDay == anchorDay ? row : nil
+        }
+        return mergeRows([anchorRow] + compatibleRows)
+    }
+
+    private static func mergeRows(_ rows: [[String: String]]) -> [String: String] {
         var fields: [String: String] = [:]
         for row in rows {
             for (key, value) in row where !isPlaceholder(value) && fields[key] == nil {
@@ -358,6 +404,21 @@ struct MXDataQuoteProvider: QuoteProvider {
             }
         }
         return fields
+    }
+
+    private static func hasLatestPrice(in row: [String: String]) -> Bool {
+        firstDouble(in: row, matching: latestPriceCandidates) != nil
+    }
+
+    private static func dayKey(in row: [String: String]) -> String? {
+        guard let date = firstDate(in: row, matching: ["date", "日期", "时间", "更新时间"]) else {
+            return nil
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     private static func indicatorLabel(for key: String, nameMap: [String: Any], codeMap: [String: String]) -> String {
@@ -371,7 +432,19 @@ struct MXDataQuoteProvider: QuoteProvider {
     }
 
     private static var latestPriceCandidates: [String] {
-        ["最新价", "最新价格", "现价", "当前价", "最新", "价格", "收盘价", "收盘", "区间最高单位净值", "最高单位净值", "最新净值", "单位净值"]
+        ["最新价", "最新价格", "实时价格", "实时价", "现价", "当前价", "当前价格", "最新", "价格", "收盘价", "收盘", "区间最高单位净值", "最高单位净值", "最新净值", "单位净值"]
+    }
+
+    private static var previousCloseCandidates: [String] {
+        ["昨收", "昨收价", "前收盘价", "前收盘", "前收", "昨日收盘价", "昨日收盘", "上一交易日收盘价"]
+    }
+
+    private static var changeAmountCandidates: [String] {
+        ["涨跌额", "涨跌值", "涨跌金额", "涨跌价", "价格变动", "价格变动额", "区间单位净值增长", "复权单位净值增长"]
+    }
+
+    private static var changePercentCandidates: [String] {
+        ["涨跌幅", "涨幅", "跌幅", "涨跌比例", "涨跌比率", "涨跌率", "区间单位净值增长率", "复权单位净值增长率", "净值增长率"]
     }
 
     private static func headersLookLikeIndicators(_ headers: [Any]) -> Bool {
@@ -395,6 +468,15 @@ struct MXDataQuoteProvider: QuoteProvider {
             })
         }
         return [:]
+    }
+
+    private static func orderedDataKeys(in table: [String: Any], dto: [String: Any]) -> [String] {
+        let keys = Set(table.keys.filter { $0 != "headName" })
+        let ordered = (dto["indicatorOrder"] as? [Any] ?? [])
+            .map(flatten)
+            .filter { keys.contains($0) }
+        let remaining = keys.subtracting(ordered).sorted()
+        return ordered + remaining
     }
 
     private static func returnCodeMap(_ dto: [String: Any]) -> [String: String] {
@@ -487,15 +569,27 @@ struct MXDataQuoteProvider: QuoteProvider {
 
     private static func dateValue(_ value: String) -> Date? {
         let iso = ISO8601DateFormatter()
-        if let date = iso.date(from: value) { return date }
+        let normalized = value
+            .replacingOccurrences(of: #"\([^)]*\)"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let date = iso.date(from: normalized) { return date }
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.timeZone = .current
-        for format in ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd"] {
+        for format in ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy/MM/dd HH:mm:ss", "yyyy/MM/dd HH:mm", "yyyy-MM-dd", "yyyy/MM/dd"] {
             formatter.dateFormat = format
-            if let date = formatter.date(from: value) {
+            if let date = formatter.date(from: normalized) {
                 return date
+            }
+        }
+        if let range = normalized.range(
+            of: #"\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?"#,
+            options: .regularExpression
+        ) {
+            let extracted = String(normalized[range])
+            if extracted != normalized {
+                return dateValue(extracted)
             }
         }
         return nil
@@ -512,6 +606,12 @@ struct MXDataQuoteProvider: QuoteProvider {
     private static func codeInEntityHeader(_ value: String) -> String? {
         if let range = value.range(
             of: #"\(([0-9]{5,6})(?:\.[A-Z]+)?\)"#,
+            options: .regularExpression
+        ) {
+            return normalizedCode(String(value[range]))
+        }
+        if let range = value.range(
+            of: #"\b[0-9]{5,6}(?:\.[A-Z]+)?\b"#,
             options: .regularExpression
         ) {
             return normalizedCode(String(value[range]))
