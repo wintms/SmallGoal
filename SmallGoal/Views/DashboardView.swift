@@ -2,8 +2,10 @@ import SwiftData
 import SwiftUI
 
 struct DashboardView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
     @Query(sort: \Asset.updatedAt, order: .reverse) private var assets: [Asset]
+    @AppStorage("dashboard.lastAutoRefreshAt") private var lastAutoRefreshAt = 0.0
     @State private var isTotalHidden = false
     @State private var performances: [AssetPerformance] = []
     @State private var selectedAsset: Asset?
@@ -36,6 +38,33 @@ struct DashboardView: View {
         performances = assets.map { PortfolioCalculator.performance(for: $0) }
     }
 
+    private func autoRefreshQuotesIfNeeded(now: Date = .now) {
+        guard shouldAutoRefreshQuotes(now: now),
+              quoteRefreshService.configuration.canRefresh,
+              !quoteRefreshService.isRefreshing,
+              assets.contains(where: { $0.isQuoteBacked && !$0.code.isEmpty }) else { return }
+
+        lastAutoRefreshAt = now.timeIntervalSinceReferenceDate
+        Task {
+            await quoteRefreshService.refresh(assets: assets)
+            refreshPerformances()
+        }
+    }
+
+    private func shouldAutoRefreshQuotes(now: Date) -> Bool {
+        let calendar = Calendar.current
+        guard let refreshStart = calendar.date(
+            bySettingHour: 21,
+            minute: 30,
+            second: 0,
+            of: now
+        ), now >= refreshStart else { return false }
+
+        guard lastAutoRefreshAt > 0 else { return true }
+        let lastRefreshDate = Date(timeIntervalSinceReferenceDate: lastAutoRefreshAt)
+        return !calendar.isDate(lastRefreshDate, inSameDayAs: now)
+    }
+
     private var dashboardQuoteState: QuoteRefreshState {
         guard quoteRefreshService.configuration.canRefresh else {
             if quoteRefreshService.configuration.mode == .mxData {
@@ -63,8 +92,18 @@ struct DashboardView: View {
             .listStyle(.insetGrouped)
             .listSectionSpacing(18)
             .safeAreaPadding(.bottom, 20)
-            .onAppear { refreshPerformances() }
-            .onChange(of: assets.count) { _, _ in refreshPerformances() }
+            .onAppear {
+                refreshPerformances()
+                autoRefreshQuotesIfNeeded()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                autoRefreshQuotesIfNeeded()
+            }
+            .onChange(of: assets.count) { _, _ in
+                refreshPerformances()
+                autoRefreshQuotesIfNeeded()
+            }
             .sheet(item: $selectedAsset) { asset in
                 NavigationStack {
                     AssetDetailView(asset: asset)
@@ -104,18 +143,13 @@ struct DashboardView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
+                            .buttonStyle(.plain)
                         }
                         Text(isTotalHidden ? "****" : FinanceFormatters.totalCurrency(snapshot.totalValue))
                             .font(.system(.largeTitle, design: .rounded, weight: .semibold))
                             .monospacedDigit()
                             .minimumScaleFactor(0.7)
                     }
-                    Spacer()
-                    Image(systemName: "wallet.pass")
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 38, height: 38)
-                        .background(Color(.quaternarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
 
                 HStack(spacing: 12) {
@@ -146,13 +180,10 @@ struct DashboardView: View {
                     ContentUnavailableView("暂无资产", systemImage: "tray", description: Text("添加股票、基金、理财或现金后会显示分布。"))
                         .frame(minHeight: 160)
                 } else {
-                    AllocationStrip(allocations: snapshot.assetAllocation.filter { $0.value > 0 })
-
-                    VStack(spacing: 14) {
-                        ForEach(snapshot.assetAllocation.filter { $0.value > 0 }) { allocation in
-                            AllocationRow(allocation: allocation, hidden: isTotalHidden)
-                        }
-                    }
+                    AllocationDistributionView(
+                        allocations: snapshot.assetAllocation.filter { $0.value > 0 },
+                        hidden: isTotalHidden
+                    )
                 }
             }
             .padding(.vertical, 8)
@@ -357,51 +388,147 @@ private struct QuoteStatusLine: View {
     }
 }
 
-private struct AllocationRow: View {
+private struct AllocationDistributionView: View {
+    let allocations: [AssetAllocation]
+    var hidden = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            AllocationDonutChart(allocations: allocations)
+
+            VStack(spacing: 10) {
+                ForEach(allocations) { allocation in
+                    AllocationLegendRow(allocation: allocation, hidden: hidden)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct AllocationLegendRow: View {
     let allocation: AssetAllocation
     var hidden = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Label(allocation.type.title, systemImage: allocation.type.systemImage)
+        HStack(alignment: .center, spacing: 8) {
+            Circle()
+                .fill(allocation.type.subduedAccentColor.opacity(0.9))
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(allocation.type.title)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(allocation.type.subduedAccentColor)
-                Spacer()
-                Text(FinanceFormatters.percent(allocation.percent))
+                    .foregroundStyle(.primary)
+
+                Text(hidden ? "****" : FinanceFormatters.currency(allocation.value))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
-            ProgressView(value: allocation.percent)
-                .tint(allocation.type.subduedAccentColor.opacity(0.65))
-                .scaleEffect(x: 1, y: 0.55, anchor: .center)
-            Text(hidden ? "****" : FinanceFormatters.currency(allocation.value))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 0)
+
+            Text(FinanceFormatters.percent(allocation.percent))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(allocation.type.subduedAccentColor)
                 .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
     }
 }
 
-private struct AllocationStrip: View {
+private struct AllocationDonutChart: View {
     let allocations: [AssetAllocation]
 
-    var body: some View {
-        GeometryReader { proxy in
-            let spacing = CGFloat(max(allocations.count - 1, 0)) * 3
-            let availableWidth = max(0, proxy.size.width - spacing)
+    private var leadingAllocation: AssetAllocation? {
+        allocations.max { $0.percent < $1.percent }
+    }
 
-            HStack(spacing: 3) {
-                ForEach(allocations) { allocation in
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(allocation.type.subduedAccentColor.opacity(0.72))
-                        .frame(width: max(4, availableWidth * allocation.percent))
+    private var segments: [PieSegment] {
+        var start = 0.0
+        return allocations.map { allocation in
+            let segment = PieSegment(
+                allocation: allocation,
+                start: start,
+                end: start + allocation.percent
+            )
+            start += allocation.percent
+            return segment
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color(.quaternarySystemFill))
+
+            ForEach(segments) { segment in
+                PieSliceShape(start: segment.start, end: segment.end)
+                    .fill(segment.allocation.type.subduedAccentColor.opacity(0.88))
+            }
+
+            Circle()
+                .stroke(Color(.systemGroupedBackground), lineWidth: 2)
+
+            Circle()
+                .fill(Color(.secondarySystemGroupedBackground))
+                .frame(width: 70, height: 70)
+
+            if let leadingAllocation {
+                VStack(spacing: 2) {
+                    Text(leadingAllocation.type.title)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Text(FinanceFormatters.percent(leadingAllocation.percent))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(leadingAllocation.type.subduedAccentColor)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
+                .frame(width: 62)
             }
         }
-        .frame(height: 10)
-        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-        .accessibilityLabel("资产分布")
+        .frame(width: 112, height: 112)
+        .accessibilityLabel("资产分布甜甜圈图")
+    }
+}
+
+private struct PieSegment: Identifiable {
+    let allocation: AssetAllocation
+    let start: Double
+    let end: Double
+
+    var id: AssetAllocation.ID { allocation.id }
+}
+
+private struct PieSliceShape: Shape {
+    let start: Double
+    let end: Double
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) / 2
+        let startAngle = Angle(degrees: start * 360 - 90)
+        let endAngle = Angle(degrees: end * 360 - 90)
+
+        var path = Path()
+        path.move(to: center)
+        path.addArc(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: false
+        )
+        path.closeSubpath()
+        return path
     }
 }
 
