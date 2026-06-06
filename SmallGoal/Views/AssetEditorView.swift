@@ -4,6 +4,7 @@ import SwiftUI
 struct AssetEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
 
     private let asset: Asset?
     @State private var type: AssetType
@@ -19,6 +20,8 @@ struct AssetEditorView: View {
     @State private var maturityDate: Date
     @State private var currency: String
     @State private var note: String
+    @State private var isLookingUpQuote = false
+    @State private var lookupMessage: String?
 
     init(asset: Asset? = nil, initialType: AssetType = .stock) {
         self.asset = asset
@@ -51,10 +54,45 @@ struct AssetEditorView: View {
                 }
 
                 Section("基础信息") {
-                    TextField(namePlaceholder, text: $name)
                     if type == .stock || type == .fund {
-                        TextField("代码", text: $code)
-                            .textInputAutocapitalization(.characters)
+                        HStack {
+                            TextField("代码", text: $code)
+                                .textInputAutocapitalization(.characters)
+                            Button {
+                                Task { await lookupQuote() }
+                            } label: {
+                                if isLookingUpQuote {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "magnifyingglass")
+                                }
+                            }
+                            .disabled(!canLookupQuote)
+                            .accessibilityLabel("查询并填入")
+                        }
+                        if let lookupMessage {
+                            Text(lookupMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if type == .stock || type == .fund {
+                        HStack {
+                            TextField(namePlaceholder, text: $name)
+                            Button {
+                                Task { await lookupName() }
+                            } label: {
+                                if isLookingUpQuote {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "magnifyingglass")
+                                }
+                            }
+                            .disabled(!canLookupName)
+                            .accessibilityLabel("按名称查询并填入")
+                        }
+                    } else {
+                        TextField(namePlaceholder, text: $name)
                     }
                     if type == .stock {
                         Picker("市场", selection: $market) {
@@ -120,6 +158,14 @@ struct AssetEditorView: View {
         return true
     }
 
+    private var canLookupQuote: Bool {
+        !isLookingUpQuote && !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canLookupName: Bool {
+        !isLookingUpQuote && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var namePlaceholder: String {
         switch type {
         case .stock: "股票名称"
@@ -145,6 +191,52 @@ struct AssetEditorView: View {
         case .wealthProduct: "本金金额"
         case .cash: "现金金额"
         }
+    }
+
+    private func lookupQuote() async {
+        await lookupQuote(query: code, shouldOverwriteName: false)
+    }
+
+    private func lookupName() async {
+        await lookupQuote(query: name, shouldOverwriteName: true)
+    }
+
+    private func lookupQuote(query: String, shouldOverwriteName: Bool) async {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return }
+
+        isLookingUpQuote = true
+        lookupMessage = nil
+        defer { isLookingUpQuote = false }
+
+        do {
+            let quote = try await quoteRefreshService.fetchQuote(query: trimmedQuery)
+            if shouldOverwriteName || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                name = quote.name
+            }
+            if code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                code = quote.code
+            }
+            latestPrice = quote.latestPrice
+            previousCloseOrNetValue = quote.previousClose
+            if type == .stock, let inferredMarket = inferredMarket(for: quote.code) ?? inferredMarket(for: trimmedQuery) {
+                market = inferredMarket.rawValue
+            }
+            lookupMessage = "已填入 \(quote.name)"
+        } catch {
+            lookupMessage = "查询失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func inferredMarket(for code: String) -> Market? {
+        let digits = code.filter(\.isNumber)
+        if digits.count == 5 {
+            return .hk
+        }
+        if digits.count == 6 {
+            return .cn
+        }
+        return nil
     }
 
     private func save() {

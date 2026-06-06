@@ -136,6 +136,73 @@ final class QuoteConfigurationTests: XCTestCase {
         }
     }
 
+    func testFetchQuoteReturnsMatchingQuoteWithoutChangingRefreshState() async throws {
+        let service = QuoteRefreshService(
+            configurationStore: makeStore(),
+            providerFactory: { _, _ in StaticQuoteProvider(quotes: [
+                Quote(
+                    code: "600519",
+                    name: "贵州茅台",
+                    latestPrice: 1688,
+                    previousClose: 1670,
+                    changeAmount: 18,
+                    changePercent: 0.0108,
+                    quoteTime: .now
+                )
+            ]) }
+        )
+
+        let quote = try await service.fetchQuote(code: "SH600519")
+
+        XCTAssertEqual(quote.code, "600519")
+        XCTAssertEqual(quote.name, "贵州茅台")
+        XCTAssertEqual(quote.latestPrice, 1688, accuracy: 0.001)
+        XCTAssertEqual(service.lastMessage, QuoteProviderMode.mock.description)
+    }
+
+    func testFetchQuoteSupportsNameQueryForMXDataMode() async throws {
+        let store = makeStore()
+        store.update(mode: .mxData, endpointURLString: "")
+        try store.saveAPIKey("secret")
+        let service = QuoteRefreshService(
+            configurationStore: store,
+            providerFactory: { _, _ in StaticQuoteProvider(quotes: [
+                Quote(
+                    code: "600519",
+                    name: "贵州茅台",
+                    latestPrice: 1688,
+                    previousClose: 1670,
+                    changeAmount: 18,
+                    changePercent: 0.0108,
+                    quoteTime: .now
+                )
+            ]) }
+        )
+
+        let quote = try await service.fetchQuote(query: "贵州茅台")
+
+        XCTAssertEqual(quote.code, "600519")
+        XCTAssertEqual(quote.name, "贵州茅台")
+    }
+
+    func testFetchQuoteRejectsNameQueryForCodeOnlyProvider() async {
+        let store = makeStore()
+        store.update(mode: .chinaMarket, endpointURLString: "https://quotes.example.com")
+        let service = QuoteRefreshService(
+            configurationStore: store,
+            providerFactory: { _, _ in XCTFail("Provider should not be created"); return StaticQuoteProvider(quotes: []) }
+        )
+
+        do {
+            _ = try await service.fetchQuote(query: "贵州茅台")
+            XCTFail("Expected unsupported name query error")
+        } catch let error as QuoteProviderError {
+            XCTAssertEqual(error.localizedDescription, "当前行情源不支持名称查询")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testMXDataPayloadParsesQuoteSchema() throws {
         let payload: [String: Any] = [
             "status": 0,

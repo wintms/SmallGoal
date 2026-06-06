@@ -88,6 +88,33 @@ final class QuoteRefreshService: ObservableObject {
         configuration = configurationStore.configuration
     }
 
+    func fetchQuote(code: String) async throws -> Quote {
+        try await fetchQuote(query: code)
+    }
+
+    func fetchQuote(query: String) async throws -> Quote {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { throw QuoteProviderError.emptyCodes }
+
+        let queryContainsNumber = trimmedQuery.contains(where: \.isNumber)
+        if !queryContainsNumber && configuration.mode != .mxData {
+            throw QuoteProviderError.invalidPayload("当前行情源不支持名称查询")
+        }
+
+        let provider = try makeProvider()
+        let quotes = try await provider.fetchQuotes(for: [trimmedQuery])
+        if queryContainsNumber {
+            let requestedCode = normalizedCode(trimmedQuery)
+            if let quote = quotes.first(where: { normalizedCode($0.code) == requestedCode }) {
+                return quote
+            }
+        }
+        if let quote = quotes.first {
+            return quote
+        }
+        throw QuoteProviderError.invalidPayload("未返回行情")
+    }
+
     func refresh(assets: [Asset]) async {
         guard configuration.canRefresh else {
             state = .failure(

@@ -9,13 +9,16 @@ struct DashboardView: View {
     @State private var isTotalHidden = false
     @State private var selectedAsset: Asset?
     @State private var showsMovers = false
+    @State private var recalculationToken = 0
 
     private var snapshot: PortfolioSnapshot {
-        PortfolioCalculator.snapshot(for: assets)
+        _ = recalculationToken
+        return PortfolioCalculator.snapshot(for: assets)
     }
 
     private var performances: [AssetPerformance] {
-        assets.map { PortfolioCalculator.performance(for: $0) }
+        _ = recalculationToken
+        return assets.map { PortfolioCalculator.performance(for: $0) }
     }
 
     private var investedPerformances: [AssetPerformance] {
@@ -46,7 +49,19 @@ struct DashboardView: View {
         lastAutoRefreshAt = now.timeIntervalSinceReferenceDate
         Task {
             await quoteRefreshService.refresh(assets: assets)
+            recalculateNow()
         }
+    }
+
+    private func refreshQuotesManually() {
+        Task {
+            await quoteRefreshService.refresh(assets: assets)
+            recalculateNow()
+        }
+    }
+
+    private func recalculateNow() {
+        recalculationToken += 1
     }
 
     private func shouldAutoRefreshQuotes(now: Date) -> Bool {
@@ -107,7 +122,7 @@ struct DashboardView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await quoteRefreshService.refresh(assets: assets) }
+                        refreshQuotesManually()
                     } label: {
                         if quoteRefreshService.isRefreshing {
                             ProgressView()
@@ -161,7 +176,10 @@ struct DashboardView: View {
                     )
                 }
 
-                QuoteStatusLine(state: dashboardQuoteState)
+                QuoteStatusLine(
+                    state: dashboardQuoteState,
+                    lastRefreshAt: quoteRefreshService.lastRefreshAt
+                )
             }
             .padding(.vertical, 8)
         }
@@ -290,6 +308,7 @@ struct DashboardView: View {
 
 private struct QuoteStatusLine: View {
     let state: QuoteRefreshState
+    let lastRefreshAt: Date?
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -302,6 +321,11 @@ private struct QuoteStatusLine: View {
                     .foregroundStyle(tint)
                 if let detail = displayDetail {
                     Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let lastRefreshAt {
+                    Text("最近更新 \(lastRefreshAt.formatted(date: .omitted, time: .shortened))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
