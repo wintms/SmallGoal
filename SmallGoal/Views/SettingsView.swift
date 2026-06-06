@@ -22,12 +22,86 @@ struct AssetSnapshot: Codable {
     var maturityDate: Date
     var currency: String
     var note: String
+    var transactions: [CashTransactionSnapshot]
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case name
+        case code
+        case market
+        case quantityOrAmount
+        case cost
+        case latestPrice
+        case previousCloseOrNetValue
+        case annualYield
+        case startDate
+        case maturityDate
+        case currency
+        case note
+        case transactions
+    }
+
+    init(
+        type: String,
+        name: String,
+        code: String,
+        market: String,
+        quantityOrAmount: Double,
+        cost: Double,
+        latestPrice: Double,
+        previousCloseOrNetValue: Double,
+        annualYield: Double,
+        startDate: Date,
+        maturityDate: Date,
+        currency: String,
+        note: String,
+        transactions: [CashTransactionSnapshot] = []
+    ) {
+        self.type = type
+        self.name = name
+        self.code = code
+        self.market = market
+        self.quantityOrAmount = quantityOrAmount
+        self.cost = cost
+        self.latestPrice = latestPrice
+        self.previousCloseOrNetValue = previousCloseOrNetValue
+        self.annualYield = annualYield
+        self.startDate = startDate
+        self.maturityDate = maturityDate
+        self.currency = currency
+        self.note = note
+        self.transactions = transactions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        name = try container.decode(String.self, forKey: .name)
+        code = try container.decode(String.self, forKey: .code)
+        market = try container.decode(String.self, forKey: .market)
+        quantityOrAmount = try container.decode(Double.self, forKey: .quantityOrAmount)
+        cost = try container.decode(Double.self, forKey: .cost)
+        latestPrice = try container.decode(Double.self, forKey: .latestPrice)
+        previousCloseOrNetValue = try container.decode(Double.self, forKey: .previousCloseOrNetValue)
+        annualYield = try container.decode(Double.self, forKey: .annualYield)
+        startDate = try container.decode(Date.self, forKey: .startDate)
+        maturityDate = try container.decode(Date.self, forKey: .maturityDate)
+        currency = try container.decode(String.self, forKey: .currency)
+        note = try container.decode(String.self, forKey: .note)
+        transactions = try container.decodeIfPresent([CashTransactionSnapshot].self, forKey: .transactions) ?? []
+    }
+}
+
+struct CashTransactionSnapshot: Codable {
+    var amount: Double
+    var note: String
+    var date: Date
 }
 
 extension PortfolioExport {
     static func from(_ assets: [Asset]) -> PortfolioExport {
         PortfolioExport(
-            version: 1,
+            version: 2,
             exportedAt: .now,
             assets: assets.map { asset in
                 AssetSnapshot(
@@ -43,7 +117,14 @@ extension PortfolioExport {
                     startDate: asset.startDate,
                     maturityDate: asset.maturityDate,
                     currency: asset.currency,
-                    note: asset.note
+                    note: asset.note,
+                    transactions: (asset.transactions ?? []).map { transaction in
+                        CashTransactionSnapshot(
+                            amount: transaction.amount,
+                            note: transaction.note,
+                            date: transaction.date
+                        )
+                    }
                 )
             }
         )
@@ -171,8 +252,18 @@ struct SettingsView: View {
                     note: snapshot.note
                 )
                 modelContext.insert(asset)
+                for transactionSnapshot in snapshot.transactions {
+                    let transaction = CashTransaction(
+                        amount: transactionSnapshot.amount,
+                        note: transactionSnapshot.note,
+                        date: transactionSnapshot.date
+                    )
+                    transaction.asset = asset
+                    modelContext.insert(transaction)
+                }
                 inserted += 1
             }
+            try modelContext.save()
             importMessage = "已导入 \(inserted) 项资产"
         } catch {
             importMessage = "导入失败：\(error.localizedDescription)"

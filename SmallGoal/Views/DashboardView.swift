@@ -7,12 +7,15 @@ struct DashboardView: View {
     @Query(sort: \Asset.updatedAt, order: .reverse) private var assets: [Asset]
     @AppStorage("dashboard.lastAutoRefreshAt") private var lastAutoRefreshAt = 0.0
     @State private var isTotalHidden = false
-    @State private var performances: [AssetPerformance] = []
     @State private var selectedAsset: Asset?
     @State private var showsMovers = false
 
     private var snapshot: PortfolioSnapshot {
         PortfolioCalculator.snapshot(for: assets)
+    }
+
+    private var performances: [AssetPerformance] {
+        assets.map { PortfolioCalculator.performance(for: $0) }
     }
 
     private var investedPerformances: [AssetPerformance] {
@@ -34,10 +37,6 @@ struct DashboardView: View {
             .map { $0 }
     }
 
-    private func refreshPerformances() {
-        performances = assets.map { PortfolioCalculator.performance(for: $0) }
-    }
-
     private func autoRefreshQuotesIfNeeded(now: Date = .now) {
         guard shouldAutoRefreshQuotes(now: now),
               quoteRefreshService.configuration.canRefresh,
@@ -47,7 +46,6 @@ struct DashboardView: View {
         lastAutoRefreshAt = now.timeIntervalSinceReferenceDate
         Task {
             await quoteRefreshService.refresh(assets: assets)
-            refreshPerformances()
         }
     }
 
@@ -93,17 +91,13 @@ struct DashboardView: View {
             .listSectionSpacing(18)
             .safeAreaPadding(.bottom, 20)
             .onAppear {
-                refreshPerformances()
                 autoRefreshQuotesIfNeeded()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else { return }
                 autoRefreshQuotesIfNeeded()
             }
-            .onChange(of: assets.count) { _, _ in
-                refreshPerformances()
-                autoRefreshQuotesIfNeeded()
-            }
+            .onChange(of: assets.count) { _, _ in autoRefreshQuotesIfNeeded() }
             .sheet(item: $selectedAsset) { asset in
                 NavigationStack {
                     AssetDetailView(asset: asset)

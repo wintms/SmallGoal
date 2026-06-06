@@ -6,16 +6,16 @@ struct HoldingsView: View {
     @Query(sort: \Asset.updatedAt, order: .reverse) private var assets: [Asset]
     @State private var showingAddAsset = false
     @State private var selectedType: AssetType?
-    @State private var performances: [UUID: AssetPerformance] = [:]
 
-    @State private var groupedAssets: [(AssetType, [Asset])] = []
-
-    private func refreshState() {
-        groupedAssets = AssetType.allCases.compactMap { type in
+    private var groupedAssets: [(AssetType, [Asset])] {
+        AssetType.allCases.compactMap { type in
             let filtered = assets.filter { $0.type == type }
             return filtered.isEmpty ? nil : (type, filtered)
         }
-        performances = Dictionary(uniqueKeysWithValues: assets.map { ($0.id, PortfolioCalculator.performance(for: $0)) })
+    }
+
+    private var performances: [UUID: AssetPerformance] {
+        Dictionary(uniqueKeysWithValues: assets.map { ($0.id, PortfolioCalculator.performance(for: $0)) })
     }
 
     var body: some View {
@@ -48,8 +48,6 @@ struct HoldingsView: View {
                     )
                 }
             }
-            .onAppear { refreshState() }
-            .onChange(of: assets.count) { _, _ in refreshState() }
             .navigationTitle("持仓")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -78,7 +76,6 @@ struct HoldingsView: View {
             modelContext.delete(typedAssets[index])
         }
         try? modelContext.save()
-        refreshState()
     }
 }
 
