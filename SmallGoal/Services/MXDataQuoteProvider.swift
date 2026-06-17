@@ -227,25 +227,28 @@ struct MXDataQuoteProvider: QuoteProvider {
         let previousCloseFromField = firstDouble(in: fields, matching: previousCloseCandidates)
         let changePercentFromField = firstPercent(in: fields, matching: changePercentCandidates)
 
-        let changeAmount: Double
-        let previousClose: Double
-
-        if let ca = changeAmountFromField, let pc = previousCloseFromField {
-            changeAmount = ca
-            previousClose = pc
-        } else if let pc = previousCloseFromField {
-            previousClose = pc
-            changeAmount = latestPrice - pc
-        } else if let ca = changeAmountFromField {
-            changeAmount = ca
-            previousClose = latestPrice - ca
-        } else if let cp = changePercentFromField, cp != 0 {
-            previousClose = latestPrice / (1 + cp)
-            changeAmount = latestPrice - previousClose
-        } else {
-            changeAmount = 0
-            previousClose = latestPrice
+        let previousCloseFromChangeAmount = changeAmountFromField.map { latestPrice - $0 }
+        let previousCloseFromChangePercent = changePercentFromField.flatMap { cp -> Double? in
+            cp == -1 ? nil : latestPrice / (1 + cp)
         }
+        let consistentPreviousCloseFromField = previousCloseFromField.flatMap { pc -> Double? in
+            guard isConsistentPreviousClose(
+                pc,
+                latestPrice: latestPrice,
+                changeAmount: changeAmountFromField,
+                changePercent: changePercentFromField
+            ) else {
+                return nil
+            }
+            return pc
+        }
+
+        let previousClose = consistentPreviousCloseFromField
+            ?? previousCloseFromChangeAmount
+            ?? previousCloseFromChangePercent
+            ?? latestPrice
+
+        let changeAmount = changeAmountFromField ?? (latestPrice - previousClose)
 
         let changePercent = changePercentFromField
             ?? (previousClose == 0 ? 0 : changeAmount / previousClose)
@@ -408,6 +411,36 @@ struct MXDataQuoteProvider: QuoteProvider {
 
     private static func hasLatestPrice(in row: [String: String]) -> Bool {
         firstDouble(in: row, matching: latestPriceCandidates) != nil
+    }
+
+    private static func isConsistentPreviousClose(
+        _ previousClose: Double,
+        latestPrice: Double,
+        changeAmount: Double?,
+        changePercent: Double?
+    ) -> Bool {
+        guard previousClose > 0 else { return false }
+
+        if let changeAmount {
+            let impliedPreviousClose = latestPrice - changeAmount
+            if approximatelyEqual(previousClose, impliedPreviousClose) {
+                return true
+            }
+        }
+
+        if let changePercent, changePercent != -1 {
+            let impliedPreviousClose = latestPrice / (1 + changePercent)
+            if approximatelyEqual(previousClose, impliedPreviousClose) {
+                return true
+            }
+        }
+
+        return changeAmount == nil && changePercent == nil
+    }
+
+    private static func approximatelyEqual(_ lhs: Double, _ rhs: Double) -> Bool {
+        let tolerance = max(0.01, abs(rhs) * 0.001)
+        return abs(lhs - rhs) <= tolerance
     }
 
     private static func dayKey(in row: [String: String]) -> String? {

@@ -474,6 +474,49 @@ final class QuoteConfigurationTests: XCTestCase {
 	        XCTAssertEqual(quote.changePercent, 0.02738, accuracy: 0.0001)
 	    }
 
+    func testMXDataPayloadIgnoresInconsistentPreviousClose() throws {
+        let payload: [String: Any] = [
+            "status": 0,
+            "data": [
+                "data": [
+                    "searchDataResultDTO": [
+                        "entityTagDTOList": [
+                            [
+                                "fullName": "腾讯控股",
+                                "secuCode": "00700"
+                            ]
+                        ],
+                        "dataTableDTOList": [
+                            [
+                                "code": "00700.HK",
+                                "entityName": "腾讯控股",
+                                "table": [
+                                    "headName": ["昨收价", "区间收盘价"],
+                                    "00700": ["0.594", "445.4"]
+                                ]
+                            ],
+                            [
+                                "code": "00700.HK",
+                                "entityName": "腾讯控股",
+                                "table": [
+                                    "headName": ["最新价", "涨跌额", "涨跌幅"],
+                                    "00700": ["445.400", "-2.000", "-0.45%"]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let quote = try MXDataQuoteProvider.parseQuote(from: payload, fallbackCode: "00700")
+
+        XCTAssertEqual(quote.latestPrice, 445.4, accuracy: 0.001)
+        XCTAssertEqual(quote.previousClose, 447.4, accuracy: 0.001)
+        XCTAssertEqual(quote.changeAmount, -2.0, accuracy: 0.001)
+        XCTAssertEqual(quote.changePercent, -0.0045, accuracy: 0.0001)
+    }
+
 	    func testMXDataPayloadParsesBatchWithHKCodes() throws {
 	        let payload: [String: Any] = [
 	            "status": 0,
