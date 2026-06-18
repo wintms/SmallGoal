@@ -23,6 +23,8 @@ struct AssetSnapshot: Codable {
     var currency: String
     var note: String
     var transactions: [CashTransactionSnapshot]
+    var investmentTransactions: [InvestmentTransactionSnapshot]
+    var recurringInvestmentPlans: [RecurringInvestmentPlanSnapshot]
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -39,6 +41,8 @@ struct AssetSnapshot: Codable {
         case currency
         case note
         case transactions
+        case investmentTransactions
+        case recurringInvestmentPlans
     }
 
     init(
@@ -55,7 +59,9 @@ struct AssetSnapshot: Codable {
         maturityDate: Date,
         currency: String,
         note: String,
-        transactions: [CashTransactionSnapshot] = []
+        transactions: [CashTransactionSnapshot] = [],
+        investmentTransactions: [InvestmentTransactionSnapshot] = [],
+        recurringInvestmentPlans: [RecurringInvestmentPlanSnapshot] = []
     ) {
         self.type = type
         self.name = name
@@ -71,6 +77,8 @@ struct AssetSnapshot: Codable {
         self.currency = currency
         self.note = note
         self.transactions = transactions
+        self.investmentTransactions = investmentTransactions
+        self.recurringInvestmentPlans = recurringInvestmentPlans
     }
 
     init(from decoder: Decoder) throws {
@@ -89,6 +97,8 @@ struct AssetSnapshot: Codable {
         currency = try container.decode(String.self, forKey: .currency)
         note = try container.decode(String.self, forKey: .note)
         transactions = try container.decodeIfPresent([CashTransactionSnapshot].self, forKey: .transactions) ?? []
+        investmentTransactions = try container.decodeIfPresent([InvestmentTransactionSnapshot].self, forKey: .investmentTransactions) ?? []
+        recurringInvestmentPlans = try container.decodeIfPresent([RecurringInvestmentPlanSnapshot].self, forKey: .recurringInvestmentPlans) ?? []
     }
 }
 
@@ -98,10 +108,68 @@ struct CashTransactionSnapshot: Codable {
     var date: Date
 }
 
+struct InvestmentTransactionSnapshot: Codable {
+    var amount: Double
+    var units: Double
+    var netValue: Double
+    var fee: Double
+    var note: String
+    var date: Date
+}
+
+struct RecurringInvestmentPlanSnapshot: Codable {
+    var amount: Double
+    var frequency: String
+    var weekday: Int
+    var dayOfMonth: Int
+    var nextDate: Date
+    var isEnabled: Bool
+    var note: String
+
+    private enum CodingKeys: String, CodingKey {
+        case amount
+        case frequency
+        case weekday
+        case dayOfMonth
+        case nextDate
+        case isEnabled
+        case note
+    }
+
+    init(
+        amount: Double,
+        frequency: String,
+        weekday: Int,
+        dayOfMonth: Int,
+        nextDate: Date,
+        isEnabled: Bool,
+        note: String
+    ) {
+        self.amount = amount
+        self.frequency = frequency
+        self.weekday = weekday
+        self.dayOfMonth = dayOfMonth
+        self.nextDate = nextDate
+        self.isEnabled = isEnabled
+        self.note = note
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        amount = try container.decode(Double.self, forKey: .amount)
+        frequency = try container.decodeIfPresent(String.self, forKey: .frequency) ?? RecurringInvestmentFrequency.monthly.rawValue
+        weekday = try container.decodeIfPresent(Int.self, forKey: .weekday) ?? Weekday.monday.rawValue
+        dayOfMonth = try container.decode(Int.self, forKey: .dayOfMonth)
+        nextDate = try container.decode(Date.self, forKey: .nextDate)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        note = try container.decode(String.self, forKey: .note)
+    }
+}
+
 extension PortfolioExport {
     static func from(_ assets: [Asset]) -> PortfolioExport {
         PortfolioExport(
-            version: 2,
+            version: 3,
             exportedAt: .now,
             assets: assets.map { asset in
                 AssetSnapshot(
@@ -123,6 +191,27 @@ extension PortfolioExport {
                             amount: transaction.amount,
                             note: transaction.note,
                             date: transaction.date
+                        )
+                    },
+                    investmentTransactions: (asset.investmentTransactions ?? []).map { transaction in
+                        InvestmentTransactionSnapshot(
+                            amount: transaction.amount,
+                            units: transaction.units,
+                            netValue: transaction.netValue,
+                            fee: transaction.fee,
+                            note: transaction.note,
+                            date: transaction.date
+                        )
+                    },
+                    recurringInvestmentPlans: (asset.recurringInvestmentPlans ?? []).map { plan in
+                        RecurringInvestmentPlanSnapshot(
+                            amount: plan.amount,
+                            frequency: plan.frequencyRaw,
+                            weekday: plan.weekday,
+                            dayOfMonth: plan.dayOfMonth,
+                            nextDate: plan.nextDate,
+                            isEnabled: plan.isEnabled,
+                            note: plan.note
                         )
                     }
                 )
@@ -260,6 +349,31 @@ struct SettingsView: View {
                     )
                     transaction.asset = asset
                     modelContext.insert(transaction)
+                }
+                for transactionSnapshot in snapshot.investmentTransactions {
+                    let transaction = InvestmentTransaction(
+                        amount: transactionSnapshot.amount,
+                        units: transactionSnapshot.units,
+                        netValue: transactionSnapshot.netValue,
+                        fee: transactionSnapshot.fee,
+                        date: transactionSnapshot.date,
+                        note: transactionSnapshot.note
+                    )
+                    transaction.asset = asset
+                    modelContext.insert(transaction)
+                }
+                for planSnapshot in snapshot.recurringInvestmentPlans {
+                    let plan = RecurringInvestmentPlan(
+                        amount: planSnapshot.amount,
+                        frequency: RecurringInvestmentFrequency(rawValue: planSnapshot.frequency) ?? .monthly,
+                        weekday: Weekday(rawValue: planSnapshot.weekday) ?? .monday,
+                        dayOfMonth: planSnapshot.dayOfMonth,
+                        nextDate: planSnapshot.nextDate,
+                        isEnabled: planSnapshot.isEnabled,
+                        note: planSnapshot.note
+                    )
+                    plan.asset = asset
+                    modelContext.insert(plan)
                 }
                 inserted += 1
             }

@@ -7,7 +7,10 @@ struct SmallGoalApp: App {
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Asset.self
+            Asset.self,
+            CashTransaction.self,
+            InvestmentTransaction.self,
+            RecurringInvestmentPlan.self
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

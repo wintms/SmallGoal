@@ -86,6 +86,42 @@ enum AssetType: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+enum RecurringInvestmentFrequency: String, CaseIterable, Identifiable, Codable {
+    case daily
+    case weekly
+    case monthly
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .daily: "每日"
+        case .weekly: "每周"
+        case .monthly: "每月"
+        }
+    }
+}
+
+enum Weekday: Int, CaseIterable, Identifiable, Codable {
+    case monday = 2
+    case tuesday = 3
+    case wednesday = 4
+    case thursday = 5
+    case friday = 6
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .monday: "周一"
+        case .tuesday: "周二"
+        case .wednesday: "周三"
+        case .thursday: "周四"
+        case .friday: "周五"
+        }
+    }
+}
+
 @Model
 final class Asset {
     @Attribute(.unique) var id: UUID
@@ -104,6 +140,8 @@ final class Asset {
     var note: String
     var quoteUpdatedAt: Date?
     @Relationship(deleteRule: .cascade, inverse: \CashTransaction.asset) var transactions: [CashTransaction]?
+    @Relationship(deleteRule: .cascade, inverse: \InvestmentTransaction.asset) var investmentTransactions: [InvestmentTransaction]?
+    @Relationship(deleteRule: .cascade, inverse: \RecurringInvestmentPlan.asset) var recurringInvestmentPlans: [RecurringInvestmentPlan]?
     var createdAt: Date
     var updatedAt: Date
 
@@ -183,6 +221,22 @@ final class Asset {
         let net = (transactions ?? []).reduce(0) { $0 + $1.amount }
         return quantityOrAmount + net
     }
+
+    var fundUnits: Double {
+        let recordedUnits = (investmentTransactions ?? []).reduce(0) { $0 + $1.units }
+        return recordedUnits > 0 ? recordedUnits : quantityOrAmount
+    }
+
+    var fundCostValue: Double {
+        let recordedCost = (investmentTransactions ?? []).reduce(0) { $0 + $1.amount }
+        return recordedCost > 0 ? recordedCost : quantityOrAmount * cost
+    }
+
+    var primaryRecurringInvestmentPlan: RecurringInvestmentPlan? {
+        (recurringInvestmentPlans ?? [])
+            .sorted { $0.createdAt < $1.createdAt }
+            .first
+    }
 }
 
 @Model
@@ -200,5 +254,82 @@ final class CashTransaction {
         self.note = note
         self.date = date
         self.createdAt = .now
+    }
+}
+
+@Model
+final class InvestmentTransaction {
+    @Attribute(.unique) var id: UUID
+    var amount: Double
+    var units: Double
+    var netValue: Double
+    var fee: Double
+    var date: Date
+    var note: String
+    var createdAt: Date
+    var asset: Asset?
+
+    init(
+        amount: Double,
+        units: Double,
+        netValue: Double,
+        fee: Double = 0,
+        date: Date = .now,
+        note: String = ""
+    ) {
+        self.id = UUID()
+        self.amount = amount
+        self.units = units
+        self.netValue = netValue
+        self.fee = fee
+        self.date = date
+        self.note = note
+        self.createdAt = .now
+    }
+}
+
+@Model
+final class RecurringInvestmentPlan {
+    @Attribute(.unique) var id: UUID
+    var amount: Double
+    var frequencyRaw: String = RecurringInvestmentFrequency.monthly.rawValue
+    var weekday: Int = Weekday.monday.rawValue
+    var dayOfMonth: Int
+    var nextDate: Date
+    var isEnabled: Bool
+    var note: String
+    var createdAt: Date
+    var updatedAt: Date
+    var asset: Asset?
+
+    init(
+        amount: Double,
+        frequency: RecurringInvestmentFrequency = .monthly,
+        weekday: Weekday = .monday,
+        dayOfMonth: Int = 1,
+        nextDate: Date,
+        isEnabled: Bool = true,
+        note: String = ""
+    ) {
+        self.id = UUID()
+        self.amount = amount
+        self.frequencyRaw = frequency.rawValue
+        self.weekday = weekday.rawValue
+        self.dayOfMonth = max(1, min(31, dayOfMonth))
+        self.nextDate = nextDate
+        self.isEnabled = isEnabled
+        self.note = note
+        self.createdAt = .now
+        self.updatedAt = .now
+    }
+
+    var frequency: RecurringInvestmentFrequency {
+        get { RecurringInvestmentFrequency(rawValue: frequencyRaw) ?? .monthly }
+        set { frequencyRaw = newValue.rawValue }
+    }
+
+    var selectedWeekday: Weekday {
+        get { Weekday(rawValue: weekday) ?? .monday }
+        set { weekday = newValue.rawValue }
     }
 }

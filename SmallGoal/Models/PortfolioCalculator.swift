@@ -39,9 +39,12 @@ enum PortfolioCalculator {
 
     static func currentValue(for asset: Asset, on date: Date = .now) -> Double {
         switch asset.type {
-        case .stock, .fund:
+        case .stock:
             let price = asset.latestPrice > 0 ? asset.latestPrice : asset.cost
             return asset.quantityOrAmount * price
+        case .fund:
+            let price = asset.latestPrice > 0 ? asset.latestPrice : asset.cost
+            return asset.fundUnits * price
         case .wealthProduct:
             let principal = asset.quantityOrAmount
             return principal + accruedYield(for: asset, on: date)
@@ -52,8 +55,10 @@ enum PortfolioCalculator {
 
     static func costValue(for asset: Asset) -> Double {
         switch asset.type {
-        case .stock, .fund:
+        case .stock:
             return asset.quantityOrAmount * asset.cost
+        case .fund:
+            return asset.fundCostValue
         case .wealthProduct, .cash:
             return asset.quantityOrAmount
         }
@@ -65,9 +70,12 @@ enum PortfolioCalculator {
 
     static func dailyProfitLoss(for asset: Asset, on date: Date = .now) -> Double {
         switch asset.type {
-        case .stock, .fund:
+        case .stock:
             guard asset.previousCloseOrNetValue > 0 else { return 0 }
             return asset.quantityOrAmount * (asset.latestPrice - asset.previousCloseOrNetValue)
+        case .fund:
+            guard asset.previousCloseOrNetValue > 0 else { return 0 }
+            return asset.fundUnits * (asset.latestPrice - asset.previousCloseOrNetValue)
         case .wealthProduct:
             return asset.quantityOrAmount * asset.annualYield / 365
         case .cash:
