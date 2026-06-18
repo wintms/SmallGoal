@@ -50,6 +50,26 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertEqual(PortfolioCalculator.dailyProfitLoss(for: asset, on: current), 1, accuracy: 0.001)
     }
 
+    func testFundPerformanceUsesInvestmentTransactionsWhenPresent() {
+        let asset = Asset(
+            type: .fund,
+            name: "指数基金",
+            code: "510300",
+            quantityOrAmount: 100,
+            cost: 1,
+            latestPrice: 1.2,
+            previousCloseOrNetValue: 1.18
+        )
+        let first = InvestmentTransaction(amount: 1_000, units: 1_000, netValue: 1)
+        let second = InvestmentTransaction(amount: 600, units: 500, netValue: 1.2)
+        asset.investmentTransactions = [first, second]
+
+        XCTAssertEqual(PortfolioCalculator.currentValue(for: asset), 1_800, accuracy: 0.001)
+        XCTAssertEqual(PortfolioCalculator.costValue(for: asset), 1_600, accuracy: 0.001)
+        XCTAssertEqual(PortfolioCalculator.cumulativeProfitLoss(for: asset), 200, accuracy: 0.001)
+        XCTAssertEqual(PortfolioCalculator.dailyProfitLoss(for: asset), 30, accuracy: 0.001)
+    }
+
     func testPortfolioExportIncludesCashTransactions() throws {
         let calendar = Calendar(identifier: .gregorian)
         let incomeDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1))!
@@ -68,11 +88,72 @@ final class PortfolioCalculatorTests: XCTestCase {
         let data = try JSONEncoder().encode(export)
         let decoded = try JSONDecoder().decode(PortfolioExport.self, from: data)
 
-        XCTAssertEqual(decoded.version, 2)
+        XCTAssertEqual(decoded.version, 3)
         XCTAssertEqual(decoded.assets.count, 1)
         XCTAssertEqual(decoded.assets[0].transactions.count, 2)
         XCTAssertEqual(decoded.assets[0].transactions.map(\.amount).sorted(), [-120, 500])
         XCTAssertTrue(decoded.assets[0].transactions.contains { $0.note == "工资" && $0.date == incomeDate })
+    }
+
+    func testPortfolioExportIncludesFundInvestmentRecordsAndPlan() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let buyDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1))!
+        let nextDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 1))!
+        let asset = Asset(
+            type: .fund,
+            name: "指数基金",
+            code: "510300",
+            quantityOrAmount: 1_000,
+            cost: 1
+        )
+        let transaction = InvestmentTransaction(amount: 1_000, units: 1_000, netValue: 1, fee: 1, date: buyDate, note: "定投")
+        let plan = RecurringInvestmentPlan(amount: 1_000, dayOfMonth: 1, nextDate: nextDate)
+        asset.investmentTransactions = [transaction]
+        asset.recurringInvestmentPlans = [plan]
+
+        let export = PortfolioExport.from([asset])
+        let data = try JSONEncoder().encode(export)
+        let decoded = try JSONDecoder().decode(PortfolioExport.self, from: data)
+
+        XCTAssertEqual(decoded.version, 3)
+        XCTAssertEqual(decoded.assets[0].investmentTransactions.count, 1)
+        XCTAssertEqual(decoded.assets[0].investmentTransactions[0].note, "定投")
+        XCTAssertEqual(decoded.assets[0].investmentTransactions[0].fee, 1)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans.count, 1)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].amount, 1_000)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].frequency, RecurringInvestmentFrequency.monthly.rawValue)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].weekday, Weekday.monday.rawValue)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].nextDate, nextDate)
+    }
+
+    func testPortfolioExportIncludesWeeklyRecurringInvestmentPlan() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let nextDate = calendar.date(from: DateComponents(year: 2026, month: 7, day: 3))!
+        let asset = Asset(
+            type: .fund,
+            name: "指数基金",
+            code: "510300",
+            quantityOrAmount: 1_000,
+            cost: 1
+        )
+        let plan = RecurringInvestmentPlan(
+            amount: 500,
+            frequency: .weekly,
+            weekday: .friday,
+            dayOfMonth: 1,
+            nextDate: nextDate
+        )
+        asset.recurringInvestmentPlans = [plan]
+
+        let export = PortfolioExport.from([asset])
+        let data = try JSONEncoder().encode(export)
+        let decoded = try JSONDecoder().decode(PortfolioExport.self, from: data)
+
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans.count, 1)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].amount, 500)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].frequency, RecurringInvestmentFrequency.weekly.rawValue)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].weekday, Weekday.friday.rawValue)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].nextDate, nextDate)
     }
 
     func testPortfolioExportDecodesLegacyAssetsWithoutTransactions() throws {
@@ -107,5 +188,7 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertEqual(decoded.version, 1)
         XCTAssertEqual(decoded.assets.count, 1)
         XCTAssertTrue(decoded.assets[0].transactions.isEmpty)
+        XCTAssertTrue(decoded.assets[0].investmentTransactions.isEmpty)
+        XCTAssertTrue(decoded.assets[0].recurringInvestmentPlans.isEmpty)
     }
 }
