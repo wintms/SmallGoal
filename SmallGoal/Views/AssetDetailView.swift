@@ -4,6 +4,8 @@ import SwiftUI
 struct AssetDetailView: View {
     let asset: Asset
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
+    @Query(sort: \Asset.createdAt) private var allAssets: [Asset]
     @State private var showingEditor = false
     @State private var showingAddTransaction = false
     @State private var transactionAmount: Double?
@@ -15,9 +17,12 @@ struct AssetDetailView: View {
     @State private var investmentFee: Double?
     @State private var investmentDate: Date = .now
     @State private var investmentNote = ""
+    @State private var isLookingUpInvestmentNetValue = false
+    @State private var investmentLookupMessage: String?
     @State private var pendingRecurringPlan: RecurringInvestmentPlan?
     @State private var showingRecurringPlanEditor = false
     @State private var planAmount: Double?
+    @State private var planFeeRatePercent: Double?
     @State private var planFrequency: RecurringInvestmentFrequency = .monthly
     @State private var planWeekday: Weekday = .monday
     @State private var planDayOfMonth = 1
@@ -93,33 +98,36 @@ struct AssetDetailView: View {
                 }
             }
 
-            if asset.type == .fund {
-                if let plan = asset.primaryRecurringInvestmentPlan {
-                    Section("定投计划") {
-                        DetailRow("金额", FinanceFormatters.valueWithSymbol(plan.amount, symbol: asset.currencySymbol))
-                        DetailRow("周期", recurringPlanScheduleText(plan))
-                        DetailRow("下次", plan.nextDate.formatted(date: .abbreviated, time: .omitted))
-                        DetailRow("状态", plan.isEnabled ? "启用" : "暂停")
-                        if isRecurringPlanDue(plan) {
+            if asset.type == .stock || asset.type == .fund {
+                if asset.type == .fund {
+                    Section {
+                        if let plan = asset.primaryRecurringInvestmentPlan {
+                            DetailRow("金额", FinanceFormatters.valueWithSymbol(plan.amount, symbol: asset.currencySymbol))
+                            DetailRow("手续费率", FinanceFormatters.percent(plan.feeRate))
+                            DetailRow("周期", recurringPlanScheduleText(plan))
+                            DetailRow("下次", plan.nextDate.formatted(date: .abbreviated, time: .omitted))
+                            DetailRow("状态", plan.isEnabled ? "启用" : "暂停")
+                            if isRecurringPlanDue(plan) {
+                                Button {
+                                    prepareInvestmentTransaction(from: plan)
+                                } label: {
+                                    Label("确认本期定投", systemImage: "checkmark.circle")
+                                }
+                            }
                             Button {
-                                prepareInvestmentTransaction(from: plan)
+                                prepareRecurringPlanEditor(plan)
                             } label: {
-                                Label("确认本期定投", systemImage: "checkmark.circle")
+                                Label("编辑计划", systemImage: "calendar.badge.clock")
+                            }
+                        } else {
+                            Button {
+                                prepareRecurringPlanEditor(nil)
+                            } label: {
+                                Label("设置定投计划", systemImage: "calendar.badge.plus")
                             }
                         }
-                        Button {
-                            prepareRecurringPlanEditor(plan)
-                        } label: {
-                            Label("编辑计划", systemImage: "calendar.badge.clock")
-                        }
-                    }
-                } else {
-                    Section("定投计划") {
-                        Button {
-                            prepareRecurringPlanEditor(nil)
-                        } label: {
-                            Label("设置定投计划", systemImage: "calendar.badge.plus")
-                        }
+                    } header: {
+                        Text("定投计划")
                     }
                 }
 
@@ -127,7 +135,7 @@ struct AssetDetailView: View {
                     ForEach(sortedInvestmentTransactions) { tx in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(tx.note.isEmpty ? "申购" : tx.note)
+                                Text(tx.note.isEmpty ? defaultInvestmentTransactionTitle : tx.note)
                                     .font(.subheadline)
                                 Text(tx.date.formatted(date: .abbreviated, time: .omitted))
                                     .font(.caption)
@@ -137,7 +145,7 @@ struct AssetDetailView: View {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text(FinanceFormatters.valueWithSymbol(tx.amount, symbol: asset.currencySymbol))
                                     .monospacedDigit()
-                                Text("\(FinanceFormatters.decimal(tx.units)) 份 @ \(FinanceFormatters.valueWithSymbol(tx.netValue, symbol: asset.currencySymbol))")
+                                Text("\(FinanceFormatters.decimal(tx.units)) \(investmentUnitName) @ \(FinanceFormatters.valueWithSymbol(tx.netValue, symbol: asset.currencySymbol))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .monospacedDigit()
@@ -152,17 +160,17 @@ struct AssetDetailView: View {
                             modelContext.delete(tx)
                             remaining.removeAll { $0.id == tx.id }
                         }
-                        updateFundSnapshotFields(using: remaining)
+                        updateInvestmentSnapshotFields(using: remaining)
                         try? modelContext.save()
                     }
 
                     Button {
                         prepareInvestmentTransaction()
                     } label: {
-                        Label("添加申购", systemImage: "plus.circle")
+                        Label(addInvestmentButtonTitle, systemImage: "plus.circle")
                     }
                 } header: {
-                    Text("申购记录")
+                    Text(investmentSectionTitle)
                 }
             }
 
@@ -259,28 +267,50 @@ struct AssetDetailView: View {
         .sheet(isPresented: $showingAddInvestmentTransaction) {
             NavigationStack {
                 Form {
-                    Section("申购") {
-                        TextField("金额", value: $investmentAmount, format: .number)
+                    Section(investmentFormSectionTitle) {
+                        TextField(investmentAmountPlaceholder, value: $investmentAmount, format: .number)
                             .keyboardType(.decimalPad)
-                        TextField("成交净值", value: $investmentNetValue, format: .number)
-                            .keyboardType(.decimalPad)
-                        TextField("手续费", value: $investmentFee, format: .number)
+                        HStack {
+                            TextField(investmentPricePlaceholder, value: $investmentNetValue, format: .number)
+                                .keyboardType(.decimalPad)
+                            Button {
+                                Task { await lookupInvestmentNetValue() }
+                            } label: {
+                                if isLookingUpInvestmentNetValue {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "magnifyingglass")
+                                }
+                            }
+                            .disabled(!canLookupInvestmentNetValue)
+                            .accessibilityLabel(investmentLookupAccessibilityLabel)
+                        }
+                        if let investmentLookupMessage {
+                            Text(investmentLookupMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        TextField(investmentFeePlaceholder, value: $investmentFee, format: .number)
                             .keyboardType(.decimalPad)
                         DatePicker("日期", selection: $investmentDate, displayedComponents: .date)
+                        if let investmentTotalAmount {
+                            DetailRow("成交金额", FinanceFormatters.valueWithSymbol(investmentTotalAmount, symbol: asset.currencySymbol))
+                        }
                         if let estimatedUnits {
-                            DetailRow("预计份额", FinanceFormatters.decimal(estimatedUnits))
+                            DetailRow(estimatedUnitsTitle, FinanceFormatters.decimal(estimatedUnits))
                         }
                     }
                     Section("备注") {
                         TextField("可选", text: $investmentNote)
                     }
                 }
-                .navigationTitle("添加申购")
+                .navigationTitle(investmentFormTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") {
                             pendingRecurringPlan = nil
+                            investmentLookupMessage = nil
                             showingAddInvestmentTransaction = false
                         }
                     }
@@ -300,6 +330,8 @@ struct AssetDetailView: View {
                 Form {
                     Section("计划") {
                         TextField("每期金额", value: $planAmount, format: .number)
+                            .keyboardType(.decimalPad)
+                        TextField("手续费率(%)，例如 0.15(%)", value: $planFeeRatePercent, format: .number)
                             .keyboardType(.decimalPad)
                         Picker("周期", selection: $planFrequency) {
                             ForEach(RecurringInvestmentFrequency.allCases) { frequency in
@@ -360,18 +392,84 @@ struct AssetDetailView: View {
         return asset.fundCostValue / asset.fundUnits
     }
 
+    private var defaultInvestmentTransactionTitle: String {
+        asset.type == .stock ? "买入" : "申购"
+    }
+
+    private var investmentSectionTitle: String {
+        asset.type == .stock ? "买入记录" : "申购记录"
+    }
+
+    private var investmentFormSectionTitle: String {
+        asset.type == .stock ? "买入" : "申购"
+    }
+
+    private var investmentFormTitle: String {
+        asset.type == .stock ? "添加买入" : "添加申购"
+    }
+
+    private var addInvestmentButtonTitle: String {
+        asset.type == .stock ? "添加买入" : "添加申购"
+    }
+
+    private var investmentAmountPlaceholder: String {
+        asset.type == .stock ? "买入数量" : "金额"
+    }
+
+    private var investmentPricePlaceholder: String {
+        asset.type == .stock ? "成交价" : "成交净值"
+    }
+
+    private var estimatedUnitsTitle: String {
+        asset.type == .stock ? "预计数量" : "预计份额"
+    }
+
+    private var investmentFeePlaceholder: String {
+        asset.type == .stock ? "税费" : "手续费"
+    }
+
+    private var investmentUnitName: String {
+        asset.type == .stock ? "股" : "份"
+    }
+
+    private var investmentLookupAccessibilityLabel: String {
+        asset.type == .stock ? "获取最新价格" : "获取最新净值"
+    }
+
+    private var investmentTotalAmount: Double? {
+        guard let input = investmentAmount,
+              let price = investmentNetValue,
+              input > 0,
+              price > 0 else { return nil }
+        let fee = investmentFee ?? 0
+        guard fee >= 0 else { return nil }
+        if asset.type == .stock {
+            return input * price + fee
+        }
+        guard input > fee else { return nil }
+        return input
+    }
+
     private var estimatedUnits: Double? {
         guard let amount = investmentAmount,
               let netValue = investmentNetValue,
               amount > 0,
               netValue > 0 else { return nil }
         let fee = investmentFee ?? 0
+        guard fee >= 0 else { return nil }
+        if asset.type == .stock {
+            return amount
+        }
         guard amount > fee else { return nil }
         return (amount - fee) / netValue
     }
 
     private var canAddInvestmentTransaction: Bool {
         estimatedUnits != nil
+    }
+
+    private var canLookupInvestmentNetValue: Bool {
+        !isLookingUpInvestmentNetValue && !asset.code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func addTransaction() {
@@ -385,21 +483,48 @@ struct AssetDetailView: View {
     private func prepareInvestmentTransaction(from plan: RecurringInvestmentPlan? = nil) {
         investmentAmount = plan?.amount
         investmentNetValue = asset.latestPrice > 0 ? asset.latestPrice : nil
-        investmentFee = 0
+        investmentFee = plan.flatMap { plan in
+            let fee = plan.amount * plan.feeRate
+            return fee > 0 ? fee : nil
+        }
         investmentDate = plan?.nextDate ?? .now
         investmentNote = plan == nil ? "" : "定投"
+        investmentLookupMessage = nil
         pendingRecurringPlan = plan
         showingAddInvestmentTransaction = true
     }
 
+    private func lookupInvestmentNetValue() async {
+        let code = asset.code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { return }
+
+        isLookingUpInvestmentNetValue = true
+        investmentLookupMessage = nil
+        defer { isLookingUpInvestmentNetValue = false }
+
+        do {
+            let quote = try await quoteRefreshService.fetchQuote(code: code)
+            investmentNetValue = quote.latestPrice
+            asset.latestPrice = quote.latestPrice
+            asset.previousCloseOrNetValue = quote.previousClose
+            asset.quoteUpdatedAt = quote.quoteTime
+            asset.updatedAt = .now
+            try? modelContext.save()
+            let label = asset.type == .stock ? "最新价格" : "最新净值"
+            investmentLookupMessage = "已获取\(label)：\(FinanceFormatters.valueWithSymbol(quote.latestPrice, symbol: asset.currencySymbol))"
+        } catch {
+            investmentLookupMessage = "获取失败：\(error.localizedDescription)"
+        }
+    }
+
     private func addInvestmentTransaction() {
-        guard let amount = investmentAmount,
+        guard let totalAmount = investmentTotalAmount,
               let netValue = investmentNetValue,
               let units = estimatedUnits else { return }
         let fee = investmentFee ?? 0
-        let seededTransaction = seedInitialFundTransactionIfNeeded()
+        let seededTransaction = seedInitialInvestmentTransactionIfNeeded()
         let tx = InvestmentTransaction(
-            amount: amount,
+            amount: totalAmount,
             units: units,
             netValue: netValue,
             fee: fee,
@@ -408,18 +533,53 @@ struct AssetDetailView: View {
         )
         tx.asset = asset
         modelContext.insert(tx)
+        recordCashOutflow(amount: totalAmount, date: investmentDate, isRecurring: pendingRecurringPlan != nil)
         if let pendingRecurringPlan {
             pendingRecurringPlan.nextDate = nextRecurringDate(after: pendingRecurringPlan.nextDate, for: pendingRecurringPlan)
             pendingRecurringPlan.updatedAt = .now
+            scheduleNotification(for: pendingRecurringPlan)
         }
-        updateFundSnapshotFields(adding: [seededTransaction, tx].compactMap { $0 })
+        updateInvestmentSnapshotFields(adding: [seededTransaction, tx].compactMap { $0 })
         asset.updatedAt = .now
         pendingRecurringPlan = nil
         try? modelContext.save()
     }
 
-    private func seedInitialFundTransactionIfNeeded() -> InvestmentTransaction? {
-        guard asset.type == .fund,
+    private func recordCashOutflow(amount: Double, date: Date, isRecurring: Bool) {
+        guard amount > 0 else { return }
+        let cashAsset = cashAssetForInvestmentPurchase()
+        let outflowAmount = asset.needsCNYConversion ? amount * Market.rate(for: asset.resolvedMarket) : amount
+        let note: String
+        if asset.type == .stock {
+            note = "股票买入：\(asset.name)"
+        } else {
+            note = "\(isRecurring ? "基金定投" : "基金申购")：\(asset.name)"
+        }
+        let tx = CashTransaction(amount: -outflowAmount, note: note, date: date)
+        tx.asset = cashAsset
+        modelContext.insert(tx)
+    }
+
+    private func cashAssetForInvestmentPurchase() -> Asset {
+        if let cashAsset = allAssets.first(where: { candidate in
+            candidate.type == .cash && (candidate.currency.isEmpty || candidate.currency == "CNY")
+        }) {
+            return cashAsset
+        }
+
+        let cashAsset = Asset(
+            type: .cash,
+            name: "现金账户",
+            quantityOrAmount: 0,
+            cost: 0,
+            currency: "CNY"
+        )
+        modelContext.insert(cashAsset)
+        return cashAsset
+    }
+
+    private func seedInitialInvestmentTransactionIfNeeded() -> InvestmentTransaction? {
+        guard asset.type == .stock || asset.type == .fund,
               (asset.investmentTransactions ?? []).isEmpty,
               asset.quantityOrAmount > 0,
               asset.cost > 0 else { return nil }
@@ -435,15 +595,15 @@ struct AssetDetailView: View {
         return tx
     }
 
-    private func updateFundSnapshotFields(adding pendingTransactions: [InvestmentTransaction] = []) {
-        guard asset.type == .fund else { return }
+    private func updateInvestmentSnapshotFields(adding pendingTransactions: [InvestmentTransaction] = []) {
+        guard asset.type == .stock || asset.type == .fund else { return }
         var transactions = asset.investmentTransactions ?? []
         transactions.append(contentsOf: pendingTransactions)
-        updateFundSnapshotFields(using: transactions)
+        updateInvestmentSnapshotFields(using: transactions)
     }
 
-    private func updateFundSnapshotFields(using transactions: [InvestmentTransaction]) {
-        guard asset.type == .fund else { return }
+    private func updateInvestmentSnapshotFields(using transactions: [InvestmentTransaction]) {
+        guard asset.type == .stock || asset.type == .fund else { return }
         let units = transactions.reduce(0) { $0 + $1.units }
         let costValue = transactions.reduce(0) { $0 + $1.amount }
         guard units > 0 else {
@@ -461,6 +621,10 @@ struct AssetDetailView: View {
         let calendar = Calendar.current
         let day = calendar.component(.day, from: .now)
         planAmount = plan?.amount
+        planFeeRatePercent = plan.flatMap { plan in
+            let percent = plan.feeRate * 100
+            return percent > 0 ? percent : nil
+        }
         planFrequency = plan?.frequency ?? .monthly
         planWeekday = plan?.selectedWeekday ?? .monday
         planDayOfMonth = plan?.dayOfMonth ?? min(day, 31)
@@ -472,9 +636,11 @@ struct AssetDetailView: View {
 
     private func saveRecurringPlan() {
         guard let amount = planAmount, amount > 0 else { return }
+        let feeRate = max(0, planFeeRatePercent ?? 0) / 100
         let normalizedNextDate = nextRecurringDate(onOrAfter: planNextDate, frequency: planFrequency, weekday: planWeekday, dayOfMonth: planDayOfMonth)
         if let plan = asset.primaryRecurringInvestmentPlan {
             plan.amount = amount
+            plan.feeRate = feeRate
             plan.frequency = planFrequency
             plan.selectedWeekday = planWeekday
             plan.dayOfMonth = planDayOfMonth
@@ -482,9 +648,11 @@ struct AssetDetailView: View {
             plan.isEnabled = planIsEnabled
             plan.note = planNote
             plan.updatedAt = .now
+            updateNotification(for: plan)
         } else {
             let plan = RecurringInvestmentPlan(
                 amount: amount,
+                feeRate: feeRate,
                 frequency: planFrequency,
                 weekday: planWeekday,
                 dayOfMonth: planDayOfMonth,
@@ -494,6 +662,7 @@ struct AssetDetailView: View {
             )
             plan.asset = asset
             modelContext.insert(plan)
+            updateNotification(for: plan)
         }
         asset.updatedAt = .now
         try? modelContext.save()
@@ -502,6 +671,20 @@ struct AssetDetailView: View {
     private func isRecurringPlanDue(_ plan: RecurringInvestmentPlan) -> Bool {
         guard plan.isEnabled else { return false }
         return Calendar.current.startOfDay(for: plan.nextDate) <= Calendar.current.startOfDay(for: .now)
+    }
+
+    private func updateNotification(for plan: RecurringInvestmentPlan) {
+        if plan.isEnabled {
+            scheduleNotification(for: plan)
+        } else {
+            RecurringInvestmentNotificationService.cancelNotification(for: plan)
+        }
+    }
+
+    private func scheduleNotification(for plan: RecurringInvestmentPlan) {
+        Task {
+            await RecurringInvestmentNotificationService.scheduleNotification(for: plan, assetName: asset.name, symbol: asset.currencySymbol)
+        }
     }
 
     private func recurringPlanScheduleText(_ plan: RecurringInvestmentPlan) -> String {

@@ -1,6 +1,9 @@
+import SwiftData
 import SwiftUI
 
 struct RootTabView: View {
+    @Query private var assets: [Asset]
+
     var body: some View {
         TabView {
             DashboardView()
@@ -17,6 +20,14 @@ struct RootTabView: View {
                 .tabItem {
                     Label("设置", systemImage: "gearshape")
                 }
+        }
+        .task {
+            await RecurringInvestmentNotificationService.scheduleNotifications(for: assets)
+        }
+        .onChange(of: assets.count) { _, _ in
+            Task {
+                await RecurringInvestmentNotificationService.scheduleNotifications(for: assets)
+            }
         }
     }
 }

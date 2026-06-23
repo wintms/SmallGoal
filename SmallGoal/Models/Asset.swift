@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UserNotifications
 
 enum Market: String, CaseIterable, Identifiable, Codable {
     case cn = "CN"
@@ -292,6 +293,7 @@ final class InvestmentTransaction {
 final class RecurringInvestmentPlan {
     @Attribute(.unique) var id: UUID
     var amount: Double
+    var feeRate: Double = 0
     var frequencyRaw: String = RecurringInvestmentFrequency.monthly.rawValue
     var weekday: Int = Weekday.monday.rawValue
     var dayOfMonth: Int
@@ -304,6 +306,7 @@ final class RecurringInvestmentPlan {
 
     init(
         amount: Double,
+        feeRate: Double = 0,
         frequency: RecurringInvestmentFrequency = .monthly,
         weekday: Weekday = .monday,
         dayOfMonth: Int = 1,
@@ -313,6 +316,7 @@ final class RecurringInvestmentPlan {
     ) {
         self.id = UUID()
         self.amount = amount
+        self.feeRate = max(0, feeRate)
         self.frequencyRaw = frequency.rawValue
         self.weekday = weekday.rawValue
         self.dayOfMonth = max(1, min(31, dayOfMonth))
@@ -331,5 +335,65 @@ final class RecurringInvestmentPlan {
     var selectedWeekday: Weekday {
         get { Weekday(rawValue: weekday) ?? .monday }
         set { weekday = newValue.rawValue }
+    }
+}
+
+enum RecurringInvestmentNotificationService {
+    static func identifier(for plan: RecurringInvestmentPlan) -> String {
+        "recurringInvestmentPlan.\(plan.id.uuidString)"
+    }
+
+    static func scheduleNotification(for plan: RecurringInvestmentPlan, assetName: String, symbol: String) async {
+        guard plan.isEnabled else {
+            cancelNotification(for: plan)
+            return
+        }
+
+        let fireDate = notificationDate(for: plan.nextDate)
+        guard fireDate > .now else {
+            cancelNotification(for: plan)
+            return
+        }
+
+        let center = UNUserNotificationCenter.current()
+        do {
+            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+            guard granted else { return }
+
+            let content = UNMutableNotificationContent()
+            content.title = "定投提醒"
+            content.body = "今天有一笔\(assetName)定投待确认：\(FinanceFormatters.valueWithSymbol(plan.amount, symbol: symbol))"
+            content.sound = .default
+
+            var components = Calendar.current.dateComponents([.year, .month, .day], from: fireDate)
+            components.hour = 21
+            components.minute = 45
+
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let request = UNNotificationRequest(identifier: identifier(for: plan), content: content, trigger: trigger)
+            center.removePendingNotificationRequests(withIdentifiers: [identifier(for: plan)])
+            try await center.add(request)
+        } catch {
+            return
+        }
+    }
+
+    static func cancelNotification(for plan: RecurringInvestmentPlan) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier(for: plan)])
+    }
+
+    static func scheduleNotifications(for assets: [Asset]) async {
+        for asset in assets where asset.type == .fund {
+            for plan in asset.recurringInvestmentPlans ?? [] {
+                await scheduleNotification(for: plan, assetName: asset.name, symbol: asset.currencySymbol)
+            }
+        }
+    }
+
+    private static func notificationDate(for date: Date) -> Date {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        components.hour = 21
+        components.minute = 45
+        return Calendar.current.date(from: components) ?? date
     }
 }

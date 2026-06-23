@@ -119,6 +119,7 @@ struct InvestmentTransactionSnapshot: Codable {
 
 struct RecurringInvestmentPlanSnapshot: Codable {
     var amount: Double
+    var feeRate: Double
     var frequency: String
     var weekday: Int
     var dayOfMonth: Int
@@ -128,6 +129,7 @@ struct RecurringInvestmentPlanSnapshot: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case amount
+        case feeRate
         case frequency
         case weekday
         case dayOfMonth
@@ -138,6 +140,7 @@ struct RecurringInvestmentPlanSnapshot: Codable {
 
     init(
         amount: Double,
+        feeRate: Double = 0,
         frequency: String,
         weekday: Int,
         dayOfMonth: Int,
@@ -146,6 +149,7 @@ struct RecurringInvestmentPlanSnapshot: Codable {
         note: String
     ) {
         self.amount = amount
+        self.feeRate = feeRate
         self.frequency = frequency
         self.weekday = weekday
         self.dayOfMonth = dayOfMonth
@@ -157,6 +161,7 @@ struct RecurringInvestmentPlanSnapshot: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         amount = try container.decode(Double.self, forKey: .amount)
+        feeRate = try container.decodeIfPresent(Double.self, forKey: .feeRate) ?? 0
         frequency = try container.decodeIfPresent(String.self, forKey: .frequency) ?? RecurringInvestmentFrequency.monthly.rawValue
         weekday = try container.decodeIfPresent(Int.self, forKey: .weekday) ?? Weekday.monday.rawValue
         dayOfMonth = try container.decode(Int.self, forKey: .dayOfMonth)
@@ -206,6 +211,7 @@ extension PortfolioExport {
                     recurringInvestmentPlans: (asset.recurringInvestmentPlans ?? []).map { plan in
                         RecurringInvestmentPlanSnapshot(
                             amount: plan.amount,
+                            feeRate: plan.feeRate,
                             frequency: plan.frequencyRaw,
                             weekday: plan.weekday,
                             dayOfMonth: plan.dayOfMonth,
@@ -295,6 +301,9 @@ struct SettingsView: View {
 
     private func clearAllData() {
         for asset in assets {
+            for plan in asset.recurringInvestmentPlans ?? [] {
+                RecurringInvestmentNotificationService.cancelNotification(for: plan)
+            }
             modelContext.delete(asset)
         }
         try? modelContext.save()
@@ -324,6 +333,7 @@ struct SettingsView: View {
             let export = try JSONDecoder().decode(PortfolioExport.self, from: data)
 
             var inserted = 0
+            var importedAssets: [Asset] = []
             for snapshot in export.assets {
                 let asset = Asset(
                     type: AssetType(rawValue: snapshot.type) ?? .stock,
@@ -341,6 +351,7 @@ struct SettingsView: View {
                     note: snapshot.note
                 )
                 modelContext.insert(asset)
+                importedAssets.append(asset)
                 for transactionSnapshot in snapshot.transactions {
                     let transaction = CashTransaction(
                         amount: transactionSnapshot.amount,
@@ -365,6 +376,7 @@ struct SettingsView: View {
                 for planSnapshot in snapshot.recurringInvestmentPlans {
                     let plan = RecurringInvestmentPlan(
                         amount: planSnapshot.amount,
+                        feeRate: planSnapshot.feeRate,
                         frequency: RecurringInvestmentFrequency(rawValue: planSnapshot.frequency) ?? .monthly,
                         weekday: Weekday(rawValue: planSnapshot.weekday) ?? .monday,
                         dayOfMonth: planSnapshot.dayOfMonth,
@@ -378,6 +390,9 @@ struct SettingsView: View {
                 inserted += 1
             }
             try modelContext.save()
+            Task {
+                await RecurringInvestmentNotificationService.scheduleNotifications(for: importedAssets)
+            }
             importMessage = "已导入 \(inserted) 项资产"
         } catch {
             importMessage = "导入失败：\(error.localizedDescription)"

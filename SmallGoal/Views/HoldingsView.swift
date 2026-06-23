@@ -172,7 +172,11 @@ struct HoldingsView: View {
 
     private func deleteAssets(at offsets: IndexSet, from typedAssets: [Asset]) {
         for index in offsets {
-            modelContext.delete(typedAssets[index])
+            let asset = typedAssets[index]
+            for plan in asset.recurringInvestmentPlans ?? [] {
+                RecurringInvestmentNotificationService.cancelNotification(for: plan)
+            }
+            modelContext.delete(asset)
         }
         try? modelContext.save()
     }

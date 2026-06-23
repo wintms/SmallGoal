@@ -107,7 +107,7 @@ final class PortfolioCalculatorTests: XCTestCase {
             cost: 1
         )
         let transaction = InvestmentTransaction(amount: 1_000, units: 1_000, netValue: 1, fee: 1, date: buyDate, note: "定投")
-        let plan = RecurringInvestmentPlan(amount: 1_000, dayOfMonth: 1, nextDate: nextDate)
+        let plan = RecurringInvestmentPlan(amount: 1_000, feeRate: 0.0015, dayOfMonth: 1, nextDate: nextDate)
         asset.investmentTransactions = [transaction]
         asset.recurringInvestmentPlans = [plan]
 
@@ -121,6 +121,7 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertEqual(decoded.assets[0].investmentTransactions[0].fee, 1)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans.count, 1)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].amount, 1_000)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].feeRate, 0.0015)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].frequency, RecurringInvestmentFrequency.monthly.rawValue)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].weekday, Weekday.monday.rawValue)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].nextDate, nextDate)
@@ -138,6 +139,7 @@ final class PortfolioCalculatorTests: XCTestCase {
         )
         let plan = RecurringInvestmentPlan(
             amount: 500,
+            feeRate: 0.002,
             frequency: .weekly,
             weekday: .friday,
             dayOfMonth: 1,
@@ -151,6 +153,7 @@ final class PortfolioCalculatorTests: XCTestCase {
 
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans.count, 1)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].amount, 500)
+        XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].feeRate, 0.002)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].frequency, RecurringInvestmentFrequency.weekly.rawValue)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].weekday, Weekday.friday.rawValue)
         XCTAssertEqual(decoded.assets[0].recurringInvestmentPlans[0].nextDate, nextDate)
