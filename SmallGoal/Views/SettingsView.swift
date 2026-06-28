@@ -22,6 +22,7 @@ struct AssetSnapshot: Codable {
     var maturityDate: Date
     var currency: String
     var note: String
+    var isArchived: Bool
     var transactions: [CashTransactionSnapshot]
     var investmentTransactions: [InvestmentTransactionSnapshot]
     var recurringInvestmentPlans: [RecurringInvestmentPlanSnapshot]
@@ -40,6 +41,7 @@ struct AssetSnapshot: Codable {
         case maturityDate
         case currency
         case note
+        case isArchived
         case transactions
         case investmentTransactions
         case recurringInvestmentPlans
@@ -59,6 +61,7 @@ struct AssetSnapshot: Codable {
         maturityDate: Date,
         currency: String,
         note: String,
+        isArchived: Bool = false,
         transactions: [CashTransactionSnapshot] = [],
         investmentTransactions: [InvestmentTransactionSnapshot] = [],
         recurringInvestmentPlans: [RecurringInvestmentPlanSnapshot] = []
@@ -76,6 +79,7 @@ struct AssetSnapshot: Codable {
         self.maturityDate = maturityDate
         self.currency = currency
         self.note = note
+        self.isArchived = isArchived
         self.transactions = transactions
         self.investmentTransactions = investmentTransactions
         self.recurringInvestmentPlans = recurringInvestmentPlans
@@ -96,6 +100,7 @@ struct AssetSnapshot: Codable {
         maturityDate = try container.decode(Date.self, forKey: .maturityDate)
         currency = try container.decode(String.self, forKey: .currency)
         note = try container.decode(String.self, forKey: .note)
+        isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         transactions = try container.decodeIfPresent([CashTransactionSnapshot].self, forKey: .transactions) ?? []
         investmentTransactions = try container.decodeIfPresent([InvestmentTransactionSnapshot].self, forKey: .investmentTransactions) ?? []
         recurringInvestmentPlans = try container.decodeIfPresent([RecurringInvestmentPlanSnapshot].self, forKey: .recurringInvestmentPlans) ?? []
@@ -174,7 +179,7 @@ struct RecurringInvestmentPlanSnapshot: Codable {
 extension PortfolioExport {
     static func from(_ assets: [Asset]) -> PortfolioExport {
         PortfolioExport(
-            version: 3,
+            version: 4,
             exportedAt: .now,
             assets: assets.map { asset in
                 AssetSnapshot(
@@ -191,6 +196,7 @@ extension PortfolioExport {
                     maturityDate: asset.maturityDate,
                     currency: asset.currency,
                     note: asset.note,
+                    isArchived: asset.isEffectivelyArchived,
                     transactions: (asset.transactions ?? []).map { transaction in
                         CashTransactionSnapshot(
                             amount: transaction.amount,
@@ -348,7 +354,8 @@ struct SettingsView: View {
                     startDate: snapshot.startDate,
                     maturityDate: snapshot.maturityDate,
                     currency: snapshot.currency,
-                    note: snapshot.note
+                    note: snapshot.note,
+                    isArchived: snapshot.isArchived
                 )
                 modelContext.insert(asset)
                 importedAssets.append(asset)
@@ -391,7 +398,7 @@ struct SettingsView: View {
             }
             try modelContext.save()
             Task {
-                await RecurringInvestmentNotificationService.scheduleNotifications(for: importedAssets)
+                await RecurringInvestmentNotificationService.scheduleNotifications(for: importedAssets.filter { !$0.isEffectivelyArchived })
             }
             importMessage = "已导入 \(inserted) 项资产"
         } catch {

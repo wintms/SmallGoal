@@ -5,6 +5,7 @@ struct AssetEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var quoteRefreshService: QuoteRefreshService
+    @Query(sort: \Asset.createdAt) private var allAssets: [Asset]
 
     private let asset: Asset?
     @State private var type: AssetType
@@ -22,6 +23,7 @@ struct AssetEditorView: View {
     @State private var note: String
     @State private var isLookingUpQuote = false
     @State private var lookupMessage: String?
+    @State private var shouldSyncInitialCashOutflow = true
 
     init(asset: Asset? = nil, initialType: AssetType = .stock) {
         self.asset = asset
@@ -125,6 +127,15 @@ struct AssetEditorView: View {
                             .keyboardType(.decimalPad)
                         DatePicker("起息日", selection: $startDate, displayedComponents: .date)
                         DatePicker("到期日", selection: $maturityDate, displayedComponents: .date)
+                    }
+                }
+
+                if asset == nil && (type == .stock || type == .fund) {
+                    Section("现金") {
+                        Toggle("同步现金支出", isOn: $shouldSyncInitialCashOutflow)
+                        if shouldSyncInitialCashOutflow, let initialCashOutflow {
+                            LabeledContent("支出金额", value: FinanceFormatters.valueWithSymbol(initialCashOutflow, symbol: cashOutflowSymbol))
+                        }
                     }
                 }
 
@@ -263,6 +274,11 @@ struct AssetEditorView: View {
             asset.maturityDate = maturityDate
             asset.currency = currency
             asset.note = note
+            if type == .stock || type == .fund {
+                asset.isArchived = resolvedQuantity <= 0
+            } else {
+                asset.isArchived = false
+            }
             asset.updatedAt = .now
         } else {
             let newAsset = Asset(
@@ -281,6 +297,73 @@ struct AssetEditorView: View {
                 note: note
             )
             modelContext.insert(newAsset)
+            createInitialInvestmentTransaction(for: newAsset, quantity: resolvedQuantity, cost: resolvedCost)
+            if shouldSyncInitialCashOutflow {
+                createInitialCashOutflow(for: newAsset, amount: resolvedQuantity * resolvedCost)
+            }
         }
+    }
+
+    private var initialCashOutflow: Double? {
+        guard type == .stock || type == .fund,
+              let quantity = quantityOrAmount,
+              let cost,
+              quantity > 0,
+              cost > 0 else { return nil }
+        let amount = quantity * cost
+        if type == .stock, (Market(rawValue: market) ?? .cn).needsCNYConversion {
+            return amount * Market.rate(for: Market(rawValue: market) ?? .cn)
+        }
+        return amount
+    }
+
+    private var cashOutflowSymbol: String {
+        "¥"
+    }
+
+    private func createInitialInvestmentTransaction(for asset: Asset, quantity: Double, cost: Double) {
+        guard asset.type == .stock || asset.type == .fund,
+              quantity > 0,
+              cost > 0 else { return }
+        let transaction = InvestmentTransaction(
+            amount: quantity * cost,
+            units: quantity,
+            netValue: cost,
+            date: asset.createdAt,
+            note: "初始持仓"
+        )
+        transaction.asset = asset
+        modelContext.insert(transaction)
+    }
+
+    private func createInitialCashOutflow(for asset: Asset, amount: Double) {
+        guard asset.type == .stock || asset.type == .fund,
+              amount > 0 else { return }
+        let resolvedAmount = asset.needsCNYConversion ? amount * Market.rate(for: asset.resolvedMarket) : amount
+        let cashTransaction = CashTransaction(
+            amount: -resolvedAmount,
+            note: "\(asset.type == .stock ? "股票" : "基金")初始持仓：\(asset.name)",
+            date: asset.createdAt
+        )
+        cashTransaction.asset = cashAssetForInitialOutflow()
+        modelContext.insert(cashTransaction)
+    }
+
+    private func cashAssetForInitialOutflow() -> Asset {
+        if let cashAsset = allAssets.first(where: { candidate in
+            candidate.type == .cash && (candidate.currency.isEmpty || candidate.currency == "CNY")
+        }) {
+            return cashAsset
+        }
+
+        let cashAsset = Asset(
+            type: .cash,
+            name: "现金账户",
+            quantityOrAmount: 0,
+            cost: 0,
+            currency: "CNY"
+        )
+        modelContext.insert(cashAsset)
+        return cashAsset
     }
 }

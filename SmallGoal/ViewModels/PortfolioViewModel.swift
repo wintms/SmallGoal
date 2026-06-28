@@ -12,8 +12,9 @@ final class PortfolioViewModel: ObservableObject {
     @Published private(set) var performances: [AssetPerformance] = []
 
     func update(with assets: [Asset]) {
-        snapshot = PortfolioCalculator.snapshot(for: assets)
-        performances = assets
+        let activeAssets = assets.filter { !$0.isEffectivelyArchived }
+        snapshot = PortfolioCalculator.snapshot(for: activeAssets)
+        performances = activeAssets
             .map { PortfolioCalculator.performance(for: $0) }
             .sorted { abs($0.dailyProfitLoss) > abs($1.dailyProfitLoss) }
     }

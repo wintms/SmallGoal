@@ -139,6 +139,7 @@ final class Asset {
     var maturityDate: Date
     var currency: String
     var note: String
+    var isArchived: Bool = false
     var quoteUpdatedAt: Date?
     @Relationship(deleteRule: .cascade, inverse: \CashTransaction.asset) var transactions: [CashTransaction]?
     @Relationship(deleteRule: .cascade, inverse: \InvestmentTransaction.asset) var investmentTransactions: [InvestmentTransaction]?
@@ -161,6 +162,7 @@ final class Asset {
         maturityDate: Date = Calendar.current.date(byAdding: .year, value: 1, to: .now) ?? .now,
         currency: String = "CNY",
         note: String = "",
+        isArchived: Bool = false,
         quoteUpdatedAt: Date? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
@@ -179,6 +181,7 @@ final class Asset {
         self.maturityDate = maturityDate
         self.currency = currency
         self.note = note
+        self.isArchived = isArchived
         self.quoteUpdatedAt = quoteUpdatedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -226,6 +229,17 @@ final class Asset {
     var fundUnits: Double {
         let recordedUnits = (investmentTransactions ?? []).reduce(0) { $0 + $1.units }
         return recordedUnits > 0 ? recordedUnits : quantityOrAmount
+    }
+
+    var currentInvestmentUnits: Double {
+        guard type == .stock || type == .fund else { return quantityOrAmount }
+        guard let investmentTransactions, !investmentTransactions.isEmpty else { return quantityOrAmount }
+        return investmentTransactions.reduce(0) { $0 + $1.units }
+    }
+
+    var isEffectivelyArchived: Bool {
+        guard type == .stock || type == .fund else { return isArchived }
+        return isArchived || currentInvestmentUnits <= 0.000001
     }
 
     var fundCostValue: Double {

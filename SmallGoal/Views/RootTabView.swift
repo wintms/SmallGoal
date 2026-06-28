@@ -4,6 +4,10 @@ import SwiftUI
 struct RootTabView: View {
     @Query private var assets: [Asset]
 
+    private var activeAssets: [Asset] {
+        assets.filter { !$0.isEffectivelyArchived }
+    }
+
     var body: some View {
         TabView {
             DashboardView()
@@ -22,11 +26,11 @@ struct RootTabView: View {
                 }
         }
         .task {
-            await RecurringInvestmentNotificationService.scheduleNotifications(for: assets)
+            await RecurringInvestmentNotificationService.scheduleNotifications(for: activeAssets)
         }
         .onChange(of: assets.count) { _, _ in
             Task {
-                await RecurringInvestmentNotificationService.scheduleNotifications(for: assets)
+                await RecurringInvestmentNotificationService.scheduleNotifications(for: activeAssets)
             }
         }
     }

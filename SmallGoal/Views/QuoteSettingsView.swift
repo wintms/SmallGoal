@@ -113,7 +113,7 @@ struct QuoteSettingsView: View {
     }
 
     private var testableCodes: [String] {
-        Array(Set(assets.filter { $0.isQuoteBacked && !$0.code.isEmpty }.map(\.code))).sorted()
+        Array(Set(assets.filter { !$0.isEffectivelyArchived && $0.isQuoteBacked && !$0.code.isEmpty }.map(\.code))).sorted()
     }
 
     private func loadConfiguration() {

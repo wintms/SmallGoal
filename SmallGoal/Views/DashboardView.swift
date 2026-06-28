@@ -11,14 +11,18 @@ struct DashboardView: View {
     @State private var showsMovers = false
     @State private var recalculationToken = 0
 
+    private var activeAssets: [Asset] {
+        assets.filter { !$0.isEffectivelyArchived }
+    }
+
     private var snapshot: PortfolioSnapshot {
         _ = recalculationToken
-        return PortfolioCalculator.snapshot(for: assets)
+        return PortfolioCalculator.snapshot(for: activeAssets)
     }
 
     private var performances: [AssetPerformance] {
         _ = recalculationToken
-        return assets.map { PortfolioCalculator.performance(for: $0) }
+        return activeAssets.map { PortfolioCalculator.performance(for: $0) }
     }
 
     private var investedPerformances: [AssetPerformance] {
@@ -44,18 +48,18 @@ struct DashboardView: View {
         guard shouldAutoRefreshQuotes(now: now),
               quoteRefreshService.configuration.canRefresh,
               !quoteRefreshService.isRefreshing,
-              assets.contains(where: { $0.isQuoteBacked && !$0.code.isEmpty }) else { return }
+              activeAssets.contains(where: { $0.isQuoteBacked && !$0.code.isEmpty }) else { return }
 
         lastAutoRefreshAt = now.timeIntervalSinceReferenceDate
         Task {
-            await quoteRefreshService.refresh(assets: assets)
+            await quoteRefreshService.refresh(assets: activeAssets)
             recalculateNow()
         }
     }
 
     private func refreshQuotesManually() {
         Task {
-            await quoteRefreshService.refresh(assets: assets)
+            await quoteRefreshService.refresh(assets: activeAssets)
             recalculateNow()
         }
     }

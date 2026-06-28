@@ -40,9 +40,11 @@ enum PortfolioCalculator {
     static func currentValue(for asset: Asset, on date: Date = .now) -> Double {
         switch asset.type {
         case .stock:
+            guard !asset.isEffectivelyArchived else { return 0 }
             let price = asset.latestPrice > 0 ? asset.latestPrice : asset.cost
             return asset.quantityOrAmount * price
         case .fund:
+            guard !asset.isEffectivelyArchived else { return 0 }
             let price = asset.latestPrice > 0 ? asset.latestPrice : asset.cost
             return asset.fundUnits * price
         case .wealthProduct:
@@ -56,8 +58,14 @@ enum PortfolioCalculator {
     static func costValue(for asset: Asset) -> Double {
         switch asset.type {
         case .stock:
+            if asset.isEffectivelyArchived {
+                return historicalInvestmentCost(for: asset)
+            }
             return asset.quantityOrAmount * asset.cost
         case .fund:
+            if asset.isEffectivelyArchived {
+                return historicalInvestmentCost(for: asset)
+            }
             return asset.fundCostValue
         case .wealthProduct, .cash:
             return asset.quantityOrAmount
@@ -65,7 +73,10 @@ enum PortfolioCalculator {
     }
 
     static func cumulativeProfitLoss(for asset: Asset, on date: Date = .now) -> Double {
-        currentValue(for: asset, on: date) - costValue(for: asset)
+        if (asset.type == .stock || asset.type == .fund), asset.isEffectivelyArchived {
+            return realizedInvestmentProfit(for: asset)
+        }
+        return currentValue(for: asset, on: date) - costValue(for: asset)
     }
 
     static func dailyProfitLoss(for asset: Asset, on date: Date = .now) -> Double {
@@ -91,6 +102,29 @@ enum PortfolioCalculator {
         let effectiveEnd = min(date, asset.maturityDate)
         let days = max(0, Calendar.current.dateComponents([.day], from: asset.startDate, to: effectiveEnd).day ?? 0)
         return asset.quantityOrAmount * asset.annualYield * Double(days) / 365
+    }
+
+    private static func historicalInvestmentCost(for asset: Asset) -> Double {
+        let buyCost = (asset.investmentTransactions ?? [])
+            .filter { $0.units > 0 && $0.netValue > 0 && $0.amount > 0 }
+            .reduce(0) { $0 + $1.amount }
+        if buyCost > 0 {
+            return buyCost
+        }
+        return asset.quantityOrAmount * asset.cost
+    }
+
+    private static func realizedInvestmentProfit(for asset: Asset) -> Double {
+        (asset.investmentTransactions ?? []).reduce(0) { partialResult, transaction in
+            if transaction.units < 0 {
+                let proceeds = abs(transaction.units) * transaction.netValue - transaction.fee
+                return partialResult + proceeds + transaction.amount
+            }
+            if transaction.units == 0, transaction.netValue == 0, transaction.amount < 0 {
+                return partialResult + abs(transaction.amount)
+            }
+            return partialResult
+        }
     }
 
     private static func cnyRate(for asset: Asset) -> Double {

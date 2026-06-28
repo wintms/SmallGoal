@@ -8,66 +8,95 @@ struct HoldingsView: View {
     @State private var selectedAddType: AssetType?
     @State private var searchText = ""
     @State private var filteredType: AssetType?
+    @State private var statusFilter: HoldingStatusFilter = .active
     @State private var sortOption: HoldingSortOption = .updatedAt
+    @State private var rowSections: [HoldingSection] = []
 
-    private var groupedAssets: [(AssetType, [Asset])] {
-        AssetType.allCases.compactMap { type in
-            let filtered = sortedAssets.filter { $0.type == type }
-            return filtered.isEmpty ? nil : (type, filtered)
+    private var cacheKey: String {
+        let assetKey = assets.map { asset in
+            [
+                asset.id.uuidString,
+                asset.typeRaw,
+                asset.name,
+                asset.code,
+                asset.market,
+                asset.currency,
+                asset.note,
+                String(asset.quantityOrAmount),
+                String(asset.cost),
+                String(asset.latestPrice),
+                String(asset.previousCloseOrNetValue),
+                String(asset.annualYield),
+                String(asset.isArchived),
+                String(asset.currentInvestmentUnits),
+                String(asset.startDate.timeIntervalSince1970),
+                String(asset.maturityDate.timeIntervalSince1970),
+                String(asset.updatedAt.timeIntervalSince1970),
+                String(asset.transactions?.count ?? 0),
+                String(asset.investmentTransactions?.count ?? 0)
+            ].joined(separator: "|")
         }
+        .joined(separator: "#")
+        return [searchText, filteredType?.rawValue ?? "all", statusFilter.rawValue, sortOption.rawValue, assetKey].joined(separator: "||")
     }
 
-    private var performances: [UUID: AssetPerformance] {
-        Dictionary(uniqueKeysWithValues: assets.map { ($0.id, PortfolioCalculator.performance(for: $0)) })
+    private var hasNoMatches: Bool {
+        !assets.isEmpty && rowSections.allSatisfy(\.rows.isEmpty)
     }
 
-    private var sortedAssets: [Asset] {
-        filteredAssets.sorted { lhs, rhs in
+    private func makeRowSections() -> [HoldingSection] {
+        let rows = filteredRows().sorted { lhs, rhs in
             switch sortOption {
             case .updatedAt:
                 lhs.updatedAt > rhs.updatedAt
             case .name:
                 lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
             case .valueHighToLow:
-                cnyValue(for: lhs) > cnyValue(for: rhs)
+                lhs.cnyValue > rhs.cnyValue
             case .valueLowToHigh:
-                cnyValue(for: lhs) < cnyValue(for: rhs)
+                lhs.cnyValue < rhs.cnyValue
             case .profitHighToLow:
-                cnyProfit(for: lhs) > cnyProfit(for: rhs)
+                lhs.cnyProfit > rhs.cnyProfit
             case .profitLowToHigh:
-                cnyProfit(for: lhs) < cnyProfit(for: rhs)
+                lhs.cnyProfit < rhs.cnyProfit
             }
+        }
+        return AssetType.allCases.compactMap { type in
+            let typedRows = rows.filter { $0.type == type }
+            return typedRows.isEmpty ? nil : HoldingSection(type: type, rows: typedRows)
         }
     }
 
-    private var filteredAssets: [Asset] {
+    private func filteredRows() -> [HoldingRowData] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return assets.filter { asset in
-            if let filteredType, asset.type != filteredType {
-                return false
+        return assets.compactMap { asset in
+            guard statusFilter.includes(asset) else {
+                return nil
             }
-            guard !query.isEmpty else { return true }
-            return searchableText(for: asset).contains(query)
+            if let filteredType, asset.type != filteredType {
+                return nil
+            }
+            if !query.isEmpty, !searchableText(for: asset).contains(query) {
+                return nil
+            }
+            return makeRowData(for: asset)
         }
     }
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(groupedAssets, id: \.0) { type, typedAssets in
-                    Section(type.title) {
-                        ForEach(typedAssets) { asset in
+                ForEach(rowSections) { section in
+                    Section(section.type.title) {
+                        ForEach(section.rows) { row in
                             NavigationLink {
-                                AssetDetailView(asset: asset)
+                                AssetDetailView(asset: row.asset)
                             } label: {
-                                HoldingRow(
-                                    asset: asset,
-                                    performance: performances[asset.id]
-                                )
+                                HoldingRow(row: row)
                             }
                         }
                         .onDelete { offsets in
-                            deleteAssets(at: offsets, from: typedAssets)
+                            deleteAssets(at: offsets, from: section.rows.map(\.asset))
                         }
                     }
                 }
@@ -79,7 +108,7 @@ struct HoldingsView: View {
                         systemImage: "plus.circle",
                         description: Text("点击右上角添加第一笔股票、基金、理财或现金。")
                     )
-                } else if filteredAssets.isEmpty {
+                } else if hasNoMatches {
                     ContentUnavailableView(
                         "没有匹配的持仓",
                         systemImage: "magnifyingglass",
@@ -93,6 +122,16 @@ struct HoldingsView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Section("筛选") {
+                            ForEach(HoldingStatusFilter.allCases) { filter in
+                                Button {
+                                    statusFilter = filter
+                                } label: {
+                                    Label(filter.title, systemImage: statusFilter == filter ? "checkmark" : filter.systemImage)
+                                }
+                            }
+                        }
+
+                        Section("类型") {
                             Button {
                                 filteredType = nil
                             } label: {
@@ -139,6 +178,9 @@ struct HoldingsView: View {
             .sheet(isPresented: $showingAddAsset) {
                 AssetEditorView(initialType: selectedAddType ?? .stock)
             }
+            .task(id: cacheKey) {
+                rowSections = makeRowSections()
+            }
         }
     }
 
@@ -156,14 +198,25 @@ struct HoldingsView: View {
         .lowercased()
     }
 
-    private func cnyValue(for asset: Asset) -> Double {
-        let value = performances[asset.id]?.currentValue ?? PortfolioCalculator.currentValue(for: asset)
-        return value * cnyRate(for: asset)
-    }
-
-    private func cnyProfit(for asset: Asset) -> Double {
-        let profit = performances[asset.id]?.cumulativeProfitLoss ?? PortfolioCalculator.cumulativeProfitLoss(for: asset)
-        return profit * cnyRate(for: asset)
+    private func makeRowData(for asset: Asset) -> HoldingRowData {
+        let performance = PortfolioCalculator.performance(for: asset)
+        let valueText = FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol)
+        let profitText = FinanceFormatters.signedValueWithSymbol(performance.cumulativeProfitLoss, symbol: asset.currencySymbol)
+        return HoldingRowData(
+            asset: asset,
+            type: asset.type,
+            isArchived: asset.isEffectivelyArchived,
+            name: asset.name,
+            displayCode: asset.displayCode,
+            systemImage: asset.type.systemImage,
+            accentColor: asset.type.accentColor,
+            valueText: valueText,
+            profitText: profitText,
+            profitColor: FinanceFormatters.profitColor(performance.cumulativeProfitLoss),
+            updatedAt: asset.updatedAt,
+            cnyValue: performance.currentValue * cnyRate(for: asset),
+            cnyProfit: performance.cumulativeProfitLoss * cnyRate(for: asset)
+        )
     }
 
     private func cnyRate(for asset: Asset) -> Double {
@@ -179,6 +232,64 @@ struct HoldingsView: View {
             modelContext.delete(asset)
         }
         try? modelContext.save()
+    }
+}
+
+private struct HoldingSection: Identifiable {
+    var id: AssetType { type }
+    let type: AssetType
+    let rows: [HoldingRowData]
+}
+
+private struct HoldingRowData: Identifiable {
+    var id: UUID { asset.id }
+    let asset: Asset
+    let type: AssetType
+    let isArchived: Bool
+    let name: String
+    let displayCode: String
+    let systemImage: String
+    let accentColor: Color
+    let valueText: String
+    let profitText: String
+    let profitColor: Color
+    let updatedAt: Date
+    let cnyValue: Double
+    let cnyProfit: Double
+}
+
+private enum HoldingStatusFilter: String, CaseIterable, Identifiable {
+    case active
+    case archived
+    case all
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .active: "当前持仓"
+        case .archived: "已清仓"
+        case .all: "全部资产"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .active: "tray.full"
+        case .archived: "archivebox"
+        case .all: "square.stack"
+        }
+    }
+
+    func includes(_ asset: Asset) -> Bool {
+        switch self {
+        case .active:
+            !asset.isEffectivelyArchived
+        case .archived:
+            asset.isEffectivelyArchived
+        case .all:
+            true
+        }
     }
 }
 
@@ -228,36 +339,43 @@ private enum HoldingSortOption: String, CaseIterable, Identifiable {
 }
 
 private struct HoldingRow: View {
-    let asset: Asset
-    let performance: AssetPerformance?
+    let row: HoldingRowData
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: asset.type.systemImage)
-                .foregroundStyle(asset.type.accentColor)
+            Image(systemName: row.systemImage)
+                .foregroundStyle(row.accentColor)
                 .frame(width: 34, height: 34)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(asset.name)
-                    .font(.headline)
-                Text(asset.displayCode)
+                HStack(spacing: 6) {
+                    Text(row.name)
+                        .font(.headline)
+                    if row.isArchived {
+                        Text("已清仓")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
+                Text(row.displayCode)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
-            if let performance {
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol))
-                        .font(.subheadline.weight(.semibold))
-                    Text(FinanceFormatters.signedValueWithSymbol(performance.cumulativeProfitLoss, symbol: asset.currencySymbol))
-                        .font(.caption)
-                        .foregroundStyle(FinanceFormatters.profitColor(performance.cumulativeProfitLoss))
-                }
-                .monospacedDigit()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(row.valueText)
+                    .font(.subheadline.weight(.semibold))
+                Text(row.profitText)
+                    .font(.caption)
+                    .foregroundStyle(row.profitColor)
             }
+            .monospacedDigit()
         }
         .padding(.vertical, 4)
     }

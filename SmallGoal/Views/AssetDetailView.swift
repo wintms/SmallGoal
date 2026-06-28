@@ -1,6 +1,13 @@
 import SwiftData
 import SwiftUI
 
+private enum InvestmentTransactionMode: String, Identifiable {
+    case buy
+    case sell
+
+    var id: String { rawValue }
+}
+
 struct AssetDetailView: View {
     let asset: Asset
     @Environment(\.modelContext) private var modelContext
@@ -11,15 +18,21 @@ struct AssetDetailView: View {
     @State private var transactionAmount: Double?
     @State private var transactionNote = ""
     @State private var transactionDate: Date = .now
-    @State private var showingAddInvestmentTransaction = false
+    @State private var activeInvestmentTransactionMode: InvestmentTransactionMode?
     @State private var investmentAmount: Double?
     @State private var investmentNetValue: Double?
     @State private var investmentFee: Double?
     @State private var investmentDate: Date = .now
     @State private var investmentNote = ""
+    @State private var investmentTransactionMode: InvestmentTransactionMode = .buy
     @State private var isLookingUpInvestmentNetValue = false
     @State private var investmentLookupMessage: String?
     @State private var pendingRecurringPlan: RecurringInvestmentPlan?
+    @State private var showingStockDividendEditor = false
+    @State private var dividendPerShare: Double?
+    @State private var bonusSharesPer10: Double?
+    @State private var dividendDate: Date = .now
+    @State private var dividendNote = ""
     @State private var showingRecurringPlanEditor = false
     @State private var planAmount: Double?
     @State private var planFeeRatePercent: Double?
@@ -29,12 +42,40 @@ struct AssetDetailView: View {
     @State private var planNextDate: Date = .now
     @State private var planIsEnabled = true
     @State private var planNote = ""
+    @State private var detailSnapshot: AssetDetailSnapshot?
 
-    private var performance: AssetPerformance {
-        PortfolioCalculator.performance(for: asset)
+    private var visibleSnapshot: AssetDetailSnapshot {
+        detailSnapshot ?? makeDetailSnapshot()
+    }
+
+    private var detailCacheKey: String {
+        [
+            asset.id.uuidString,
+            asset.typeRaw,
+            asset.name,
+            asset.code,
+            asset.market,
+            asset.currency,
+            asset.note,
+            String(asset.quantityOrAmount),
+            String(asset.cost),
+            String(asset.latestPrice),
+            String(asset.previousCloseOrNetValue),
+            String(asset.annualYield),
+            String(asset.isArchived),
+            String(asset.currentInvestmentUnits),
+            String(asset.startDate.timeIntervalSince1970),
+            String(asset.maturityDate.timeIntervalSince1970),
+            String(asset.updatedAt.timeIntervalSince1970),
+            String(asset.quoteUpdatedAt?.timeIntervalSince1970 ?? 0),
+            String(asset.transactions?.count ?? 0),
+            String(asset.investmentTransactions?.count ?? 0),
+            String(asset.recurringInvestmentPlans?.count ?? 0)
+        ].joined(separator: "|")
     }
 
     var body: some View {
+        let snapshot = visibleSnapshot
         List {
             Section {
                 VStack(alignment: .leading, spacing: 16) {
@@ -55,12 +96,12 @@ struct AssetDetailView: View {
                     }
 
                     HStack(spacing: 12) {
-                        MetricTile(title: "当前价值", value: FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol), tint: .primary)
+                        MetricTile(title: "当前价值", value: snapshot.currentValueText, tint: .primary)
                         MetricTile(
                             title: "累计盈亏",
-                            value: FinanceFormatters.signedValueWithSymbol(performance.cumulativeProfitLoss, symbol: asset.currencySymbol),
-                            tint: FinanceFormatters.profitColor(performance.cumulativeProfitLoss),
-                            subtitle: cumulativeReturnRate()
+                            value: snapshot.cumulativeProfitLossText,
+                            tint: snapshot.cumulativeProfitLossColor,
+                            subtitle: snapshot.cumulativeReturnRateText
                         )
                     }
                 }
@@ -68,33 +109,34 @@ struct AssetDetailView: View {
             }
 
             Section("收益") {
-                DetailRow("持仓成本", FinanceFormatters.valueWithSymbol(performance.costValue, symbol: asset.currencySymbol))
-                DetailRow("今日盈亏", FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol), tint: FinanceFormatters.profitColor(performance.dailyProfitLoss))
-                DetailRow("今日盈亏率", FinanceFormatters.percent(performance.dailyProfitLossPercent), tint: FinanceFormatters.profitColor(performance.dailyProfitLoss))
+                DetailRow("持仓成本", snapshot.costValueText)
+                DetailRow("今日盈亏", snapshot.dailyProfitLossText, tint: snapshot.dailyProfitLossColor)
+                DetailRow("今日盈亏率", snapshot.dailyProfitLossPercentText, tint: snapshot.dailyProfitLossColor)
             }
 
             Section("资产信息") {
                 DetailRow("类型", asset.type.title)
+                DetailRow("状态", asset.isEffectivelyArchived ? "已清仓" : "持仓中")
                 DetailRow("币种", asset.displayCurrency)
                 if asset.type != .cash {
-                    DetailRow(quantityTitle, FinanceFormatters.decimal(displayQuantity))
+                    DetailRow(quantityTitle, snapshot.displayQuantityText)
                 }
                 if asset.type == .stock || asset.type == .fund {
-                    DetailRow("成本价", FinanceFormatters.valueWithSymbol(displayCost, symbol: asset.currencySymbol))
-                    DetailRow("最新价格", FinanceFormatters.valueWithSymbol(asset.latestPrice, symbol: asset.currencySymbol))
-                    DetailRow("昨收/上一净值", FinanceFormatters.valueWithSymbol(asset.previousCloseOrNetValue, symbol: asset.currencySymbol))
+                    DetailRow("成本价", snapshot.displayCostText)
+                    DetailRow("最新价格", snapshot.latestPriceText)
+                    DetailRow("昨收/上一净值", snapshot.previousCloseText)
                 }
                 if asset.type == .wealthProduct {
-                    DetailRow("年化收益率", FinanceFormatters.percent(asset.annualYield))
-                    DetailRow("起息日", asset.startDate.formatted(date: .abbreviated, time: .omitted))
-                    DetailRow("到期日", asset.maturityDate.formatted(date: .abbreviated, time: .omitted))
+                    DetailRow("年化收益率", snapshot.annualYieldText)
+                    DetailRow("起息日", snapshot.startDateText)
+                    DetailRow("到期日", snapshot.maturityDateText)
                 }
                 if asset.type == .cash {
-                    DetailRow("初始现金", FinanceFormatters.valueWithSymbol(asset.quantityOrAmount, symbol: asset.currencySymbol))
-                    DetailRow("今日收支", FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol))
+                    DetailRow("初始现金", snapshot.initialCashText)
+                    DetailRow("今日收支", snapshot.dailyProfitLossText)
                 }
-                if let quoteUpdatedAt = asset.quoteUpdatedAt {
-                    DetailRow("行情时间", quoteUpdatedAt.formatted(date: .abbreviated, time: .shortened))
+                if let quoteUpdatedAtText = snapshot.quoteUpdatedAtText {
+                    DetailRow("行情时间", quoteUpdatedAtText)
                 }
             }
 
@@ -132,20 +174,21 @@ struct AssetDetailView: View {
                 }
 
                 Section {
-                    ForEach(sortedInvestmentTransactions) { tx in
+                    ForEach(snapshot.investmentRows) { row in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(tx.note.isEmpty ? defaultInvestmentTransactionTitle : tx.note)
+                                Text(row.title)
                                     .font(.subheadline)
-                                Text(tx.date.formatted(date: .abbreviated, time: .omitted))
+                                Text(row.dateText)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text(FinanceFormatters.valueWithSymbol(tx.amount, symbol: asset.currencySymbol))
+                                Text(row.amountText)
+                                    .foregroundStyle(row.amountColor)
                                     .monospacedDigit()
-                                Text("\(FinanceFormatters.decimal(tx.units)) \(investmentUnitName) @ \(FinanceFormatters.valueWithSymbol(tx.netValue, symbol: asset.currencySymbol))")
+                                Text(row.subtitle)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .monospacedDigit()
@@ -153,7 +196,7 @@ struct AssetDetailView: View {
                         }
                     }
                     .onDelete { offsets in
-                        let sorted = sortedInvestmentTransactions
+                        let sorted = snapshot.investmentRows.map(\.transaction)
                         var remaining = sorted
                         for index in offsets {
                             let tx = sorted[index]
@@ -165,9 +208,23 @@ struct AssetDetailView: View {
                     }
 
                     Button {
-                        prepareInvestmentTransaction()
+                        prepareInvestmentTransaction(mode: .buy)
                     } label: {
                         Label(addInvestmentButtonTitle, systemImage: "plus.circle")
+                    }
+                    Button {
+                        prepareInvestmentTransaction(mode: .sell)
+                    } label: {
+                        Label(reduceInvestmentButtonTitle, systemImage: "minus.circle")
+                    }
+                    .disabled(displayQuantity <= 0)
+                    if asset.type == .stock {
+                        Button {
+                            prepareStockDividendEditor()
+                        } label: {
+                            Label("添加分红/除权", systemImage: "dollarsign.circle")
+                        }
+                        .disabled(displayQuantity <= 0)
                     }
                 } header: {
                     Text(investmentSectionTitle)
@@ -176,25 +233,25 @@ struct AssetDetailView: View {
 
             if asset.type == .cash {
                 Section {
-                    ForEach(sortedTransactions) { tx in
+                    ForEach(snapshot.cashRows) { row in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                if !tx.note.isEmpty {
-                                    Text(tx.note)
+                                if !row.note.isEmpty {
+                                    Text(row.note)
                                         .font(.subheadline)
                                 }
-                                Text(tx.date.formatted(date: .abbreviated, time: .omitted))
+                                Text(row.dateText)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Text(FinanceFormatters.signedValueWithSymbol(tx.amount, symbol: asset.currencySymbol))
-                                .foregroundStyle(FinanceFormatters.profitColor(tx.amount))
+                            Text(row.amountText)
+                                .foregroundStyle(row.amountColor)
                                 .monospacedDigit()
                         }
                     }
                     .onDelete { offsets in
-                        let sorted = sortedTransactions
+                        let sorted = snapshot.cashRows.map(\.transaction)
                         for index in offsets {
                             let tx = sorted[index]
                             modelContext.delete(tx)
@@ -235,6 +292,10 @@ struct AssetDetailView: View {
         .sheet(isPresented: $showingEditor) {
             AssetEditorView(asset: asset)
         }
+        .task(id: detailCacheKey) {
+            synchronizeArchivedStateIfNeeded()
+            detailSnapshot = makeDetailSnapshot()
+        }
         .sheet(isPresented: $showingAddTransaction) {
             NavigationStack {
                 Form {
@@ -264,11 +325,11 @@ struct AssetDetailView: View {
             }
             .presentationDetents([.medium])
         }
-        .sheet(isPresented: $showingAddInvestmentTransaction) {
+        .sheet(item: $activeInvestmentTransactionMode) { mode in
             NavigationStack {
                 Form {
-                    Section(investmentFormSectionTitle) {
-                        TextField(investmentAmountPlaceholder, value: $investmentAmount, format: .number)
+                    Section(investmentFormSectionTitle(for: mode)) {
+                        TextField(investmentAmountPlaceholder(for: mode), value: $investmentAmount, format: .number)
                             .keyboardType(.decimalPad)
                         HStack {
                             TextField(investmentPricePlaceholder, value: $investmentNetValue, format: .number)
@@ -293,33 +354,70 @@ struct AssetDetailView: View {
                         TextField(investmentFeePlaceholder, value: $investmentFee, format: .number)
                             .keyboardType(.decimalPad)
                         DatePicker("日期", selection: $investmentDate, displayedComponents: .date)
-                        if let investmentTotalAmount {
-                            DetailRow("成交金额", FinanceFormatters.valueWithSymbol(investmentTotalAmount, symbol: asset.currencySymbol))
+                        if let investmentCashAmount = investmentCashAmount(for: mode) {
+                            DetailRow("成交金额", FinanceFormatters.valueWithSymbol(investmentCashAmount, symbol: asset.currencySymbol))
                         }
-                        if let estimatedUnits {
-                            DetailRow(estimatedUnitsTitle, FinanceFormatters.decimal(estimatedUnits))
+                        if let estimatedUnits = estimatedUnits(for: mode) {
+                            DetailRow(estimatedUnitsTitle(for: mode), FinanceFormatters.decimal(estimatedUnits))
                         }
                     }
                     Section("备注") {
                         TextField("可选", text: $investmentNote)
                     }
                 }
-                .navigationTitle(investmentFormTitle)
+                .navigationTitle(investmentFormTitle(for: mode))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") {
                             pendingRecurringPlan = nil
                             investmentLookupMessage = nil
-                            showingAddInvestmentTransaction = false
+                            activeInvestmentTransactionMode = nil
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("添加") {
-                            addInvestmentTransaction()
-                            showingAddInvestmentTransaction = false
+                        Button(investmentConfirmationTitle(for: mode)) {
+                            addInvestmentTransaction(mode: mode)
+                            activeInvestmentTransactionMode = nil
                         }
-                        .disabled(!canAddInvestmentTransaction)
+                        .disabled(!canAddInvestmentTransaction(for: mode))
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showingStockDividendEditor) {
+            NavigationStack {
+                Form {
+                    Section("分红/除权") {
+                        TextField("每股现金分红", value: $dividendPerShare, format: .number)
+                            .keyboardType(.decimalPad)
+                        TextField("每 10 股送/转股", value: $bonusSharesPer10, format: .number)
+                            .keyboardType(.decimalPad)
+                        DatePicker("日期", selection: $dividendDate, displayedComponents: .date)
+                        if let dividendCashAmount {
+                            DetailRow("现金收入", FinanceFormatters.valueWithSymbol(dividendCashAmount, symbol: asset.currencySymbol))
+                        }
+                        if let bonusShares {
+                            DetailRow("新增股数", FinanceFormatters.decimal(bonusShares))
+                        }
+                    }
+                    Section("备注") {
+                        TextField("可选", text: $dividendNote)
+                    }
+                }
+                .navigationTitle("添加分红/除权")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { showingStockDividendEditor = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") {
+                            applyStockDividend()
+                            showingStockDividendEditor = false
+                        }
+                        .disabled(!canApplyStockDividend)
                     }
                 }
             }
@@ -374,6 +472,61 @@ struct AssetDetailView: View {
         }
     }
 
+    private func makeDetailSnapshot() -> AssetDetailSnapshot {
+        let performance = PortfolioCalculator.performance(for: asset)
+        let currentDisplayQuantity = displayQuantity
+        let currentDisplayCost = displayCost
+        return AssetDetailSnapshot(
+            currentValueText: FinanceFormatters.valueWithSymbol(performance.currentValue, symbol: asset.currencySymbol),
+            cumulativeProfitLossText: FinanceFormatters.signedValueWithSymbol(performance.cumulativeProfitLoss, symbol: asset.currencySymbol),
+            cumulativeProfitLossColor: FinanceFormatters.profitColor(performance.cumulativeProfitLoss),
+            cumulativeReturnRateText: cumulativeReturnRate(for: performance),
+            costValueText: FinanceFormatters.valueWithSymbol(performance.costValue, symbol: asset.currencySymbol),
+            dailyProfitLossText: FinanceFormatters.signedValueWithSymbol(performance.dailyProfitLoss, symbol: asset.currencySymbol),
+            dailyProfitLossColor: FinanceFormatters.profitColor(performance.dailyProfitLoss),
+            dailyProfitLossPercentText: FinanceFormatters.percent(performance.dailyProfitLossPercent),
+            displayQuantityText: FinanceFormatters.decimal(currentDisplayQuantity),
+            displayCostText: FinanceFormatters.valueWithSymbol(currentDisplayCost, symbol: asset.currencySymbol),
+            latestPriceText: FinanceFormatters.valueWithSymbol(asset.latestPrice, symbol: asset.currencySymbol),
+            previousCloseText: FinanceFormatters.valueWithSymbol(asset.previousCloseOrNetValue, symbol: asset.currencySymbol),
+            annualYieldText: FinanceFormatters.percent(asset.annualYield),
+            startDateText: asset.startDate.formatted(date: .abbreviated, time: .omitted),
+            maturityDateText: asset.maturityDate.formatted(date: .abbreviated, time: .omitted),
+            initialCashText: FinanceFormatters.valueWithSymbol(asset.quantityOrAmount, symbol: asset.currencySymbol),
+            quoteUpdatedAtText: asset.quoteUpdatedAt?.formatted(date: .abbreviated, time: .shortened),
+            investmentRows: makeInvestmentRows(),
+            cashRows: makeCashRows()
+        )
+    }
+
+    private func makeInvestmentRows() -> [InvestmentTransactionRowData] {
+        sortedInvestmentTransactions.map { transaction in
+            let isSell = transaction.units < 0
+            let isAdjustment = transaction.units == 0 || transaction.netValue == 0
+            let cashAmount = transactionCashAmount(transaction)
+            return InvestmentTransactionRowData(
+                transaction: transaction,
+                title: transaction.note.isEmpty ? defaultInvestmentTransactionTitle(isSell: isSell, isAdjustment: isAdjustment) : transaction.note,
+                dateText: transaction.date.formatted(date: .abbreviated, time: .omitted),
+                amountText: transactionDisplayAmount(transaction),
+                amountColor: isSell ? FinanceFormatters.profitColor(cashAmount) : .primary,
+                subtitle: transactionSubtitle(transaction)
+            )
+        }
+    }
+
+    private func makeCashRows() -> [CashTransactionRowData] {
+        sortedTransactions.map { transaction in
+            CashTransactionRowData(
+                transaction: transaction,
+                note: transaction.note,
+                dateText: transaction.date.formatted(date: .abbreviated, time: .omitted),
+                amountText: FinanceFormatters.signedValueWithSymbol(transaction.amount, symbol: asset.currencySymbol),
+                amountColor: FinanceFormatters.profitColor(transaction.amount)
+            )
+        }
+    }
+
     private var sortedTransactions: [CashTransaction] {
         (asset.transactions ?? []).sorted { $0.date > $1.date }
     }
@@ -392,28 +545,59 @@ struct AssetDetailView: View {
         return asset.fundCostValue / asset.fundUnits
     }
 
-    private var defaultInvestmentTransactionTitle: String {
-        asset.type == .stock ? "买入" : "申购"
+    private func defaultInvestmentTransactionTitle(isSell: Bool = false, isAdjustment: Bool = false) -> String {
+        if isAdjustment {
+            return asset.type == .stock ? "分红/除权" : "调整"
+        }
+        if asset.type == .stock {
+            return isSell ? "卖出" : "买入"
+        }
+        return isSell ? "减仓" : "申购"
     }
 
     private var investmentSectionTitle: String {
-        asset.type == .stock ? "买入记录" : "申购记录"
+        asset.type == .stock ? "交易记录" : "申购/赎回记录"
     }
 
     private var investmentFormSectionTitle: String {
-        asset.type == .stock ? "买入" : "申购"
+        investmentFormSectionTitle(for: investmentTransactionMode)
+    }
+
+    private func investmentFormSectionTitle(for mode: InvestmentTransactionMode) -> String {
+        if mode == .sell {
+            return asset.type == .stock ? "卖出" : "赎回"
+        }
+        return asset.type == .stock ? "买入" : "申购"
     }
 
     private var investmentFormTitle: String {
-        asset.type == .stock ? "添加买入" : "添加申购"
+        investmentFormTitle(for: investmentTransactionMode)
+    }
+
+    private func investmentFormTitle(for mode: InvestmentTransactionMode) -> String {
+        if mode == .sell {
+            return asset.type == .stock ? "添加卖出" : "添加赎回"
+        }
+        return asset.type == .stock ? "添加买入" : "添加申购"
     }
 
     private var addInvestmentButtonTitle: String {
         asset.type == .stock ? "添加买入" : "添加申购"
     }
 
+    private var reduceInvestmentButtonTitle: String {
+        asset.type == .stock ? "添加卖出" : "添加赎回"
+    }
+
     private var investmentAmountPlaceholder: String {
-        asset.type == .stock ? "买入数量" : "金额"
+        investmentAmountPlaceholder(for: investmentTransactionMode)
+    }
+
+    private func investmentAmountPlaceholder(for mode: InvestmentTransactionMode) -> String {
+        if mode == .sell {
+            return asset.type == .stock ? "卖出数量" : "赎回份额"
+        }
+        return asset.type == .stock ? "买入数量" : "金额"
     }
 
     private var investmentPricePlaceholder: String {
@@ -421,7 +605,14 @@ struct AssetDetailView: View {
     }
 
     private var estimatedUnitsTitle: String {
-        asset.type == .stock ? "预计数量" : "预计份额"
+        estimatedUnitsTitle(for: investmentTransactionMode)
+    }
+
+    private func estimatedUnitsTitle(for mode: InvestmentTransactionMode) -> String {
+        if mode == .sell {
+            return asset.type == .stock ? "卖出数量" : "赎回份额"
+        }
+        return asset.type == .stock ? "预计数量" : "预计份额"
     }
 
     private var investmentFeePlaceholder: String {
@@ -436,13 +627,33 @@ struct AssetDetailView: View {
         asset.type == .stock ? "获取最新价格" : "获取最新净值"
     }
 
-    private var investmentTotalAmount: Double? {
+    private var investmentConfirmationTitle: String {
+        investmentConfirmationTitle(for: investmentTransactionMode)
+    }
+
+    private func investmentConfirmationTitle(for mode: InvestmentTransactionMode) -> String {
+        if mode == .sell {
+            return asset.type == .stock ? "卖出" : "减仓"
+        }
+        return "添加"
+    }
+
+    private var investmentCashAmount: Double? {
+        investmentCashAmount(for: investmentTransactionMode)
+    }
+
+    private func investmentCashAmount(for mode: InvestmentTransactionMode) -> Double? {
         guard let input = investmentAmount,
               let price = investmentNetValue,
               input > 0,
               price > 0 else { return nil }
         let fee = investmentFee ?? 0
         guard fee >= 0 else { return nil }
+        if mode == .sell {
+            let gross = input * price
+            guard gross > fee else { return nil }
+            return gross - fee
+        }
         if asset.type == .stock {
             return input * price + fee
         }
@@ -451,12 +662,20 @@ struct AssetDetailView: View {
     }
 
     private var estimatedUnits: Double? {
+        estimatedUnits(for: investmentTransactionMode)
+    }
+
+    private func estimatedUnits(for mode: InvestmentTransactionMode) -> Double? {
         guard let amount = investmentAmount,
               let netValue = investmentNetValue,
               amount > 0,
               netValue > 0 else { return nil }
         let fee = investmentFee ?? 0
         guard fee >= 0 else { return nil }
+        if mode == .sell {
+            guard amount <= displayQuantity else { return nil }
+            return amount
+        }
         if asset.type == .stock {
             return amount
         }
@@ -465,11 +684,29 @@ struct AssetDetailView: View {
     }
 
     private var canAddInvestmentTransaction: Bool {
-        estimatedUnits != nil
+        estimatedUnits != nil && investmentCashAmount != nil
+    }
+
+    private func canAddInvestmentTransaction(for mode: InvestmentTransactionMode) -> Bool {
+        estimatedUnits(for: mode) != nil && investmentCashAmount(for: mode) != nil
     }
 
     private var canLookupInvestmentNetValue: Bool {
         !isLookingUpInvestmentNetValue && !asset.code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var dividendCashAmount: Double? {
+        guard let dividendPerShare, dividendPerShare > 0, displayQuantity > 0 else { return nil }
+        return dividendPerShare * displayQuantity
+    }
+
+    private var bonusShares: Double? {
+        guard let bonusSharesPer10, bonusSharesPer10 > 0, displayQuantity > 0 else { return nil }
+        return displayQuantity * bonusSharesPer10 / 10
+    }
+
+    private var canApplyStockDividend: Bool {
+        dividendCashAmount != nil || bonusShares != nil
     }
 
     private func addTransaction() {
@@ -480,18 +717,27 @@ struct AssetDetailView: View {
         try? modelContext.save()
     }
 
-    private func prepareInvestmentTransaction(from plan: RecurringInvestmentPlan? = nil) {
+    private func prepareStockDividendEditor() {
+        dividendPerShare = nil
+        bonusSharesPer10 = nil
+        dividendDate = .now
+        dividendNote = ""
+        showingStockDividendEditor = true
+    }
+
+    private func prepareInvestmentTransaction(from plan: RecurringInvestmentPlan? = nil, mode: InvestmentTransactionMode = .buy) {
+        investmentTransactionMode = mode
         investmentAmount = plan?.amount
         investmentNetValue = asset.latestPrice > 0 ? asset.latestPrice : nil
-        investmentFee = plan.flatMap { plan in
+        investmentFee = mode == .buy ? plan.flatMap { plan in
             let fee = plan.amount * plan.feeRate
             return fee > 0 ? fee : nil
-        }
+        } : nil
         investmentDate = plan?.nextDate ?? .now
         investmentNote = plan == nil ? "" : "定投"
         investmentLookupMessage = nil
         pendingRecurringPlan = plan
-        showingAddInvestmentTransaction = true
+        activeInvestmentTransactionMode = mode
     }
 
     private func lookupInvestmentNetValue() async {
@@ -517,23 +763,28 @@ struct AssetDetailView: View {
         }
     }
 
-    private func addInvestmentTransaction() {
-        guard let totalAmount = investmentTotalAmount,
+    private func addInvestmentTransaction(mode: InvestmentTransactionMode? = nil) {
+        let resolvedMode = mode ?? investmentTransactionMode
+        investmentTransactionMode = resolvedMode
+        guard let cashAmount = investmentCashAmount(for: resolvedMode),
               let netValue = investmentNetValue,
-              let units = estimatedUnits else { return }
+              let units = estimatedUnits(for: resolvedMode) else { return }
         let fee = investmentFee ?? 0
         let seededTransaction = seedInitialInvestmentTransactionIfNeeded()
+        let isSell = resolvedMode == .sell
+        let transactionUnits = isSell ? -units : units
+        let transactionAmount = isSell ? -(units * displayCost) : cashAmount
         let tx = InvestmentTransaction(
-            amount: totalAmount,
-            units: units,
+            amount: transactionAmount,
+            units: transactionUnits,
             netValue: netValue,
             fee: fee,
             date: investmentDate,
-            note: investmentNote
+            note: investmentNote.isEmpty && isSell ? defaultInvestmentTransactionTitle(isSell: true) : investmentNote
         )
         tx.asset = asset
         modelContext.insert(tx)
-        recordCashOutflow(amount: totalAmount, date: investmentDate, isRecurring: pendingRecurringPlan != nil)
+        recordInvestmentCashTransaction(amount: cashAmount, date: investmentDate, isRecurring: pendingRecurringPlan != nil, isSell: isSell)
         if let pendingRecurringPlan {
             pendingRecurringPlan.nextDate = nextRecurringDate(after: pendingRecurringPlan.nextDate, for: pendingRecurringPlan)
             pendingRecurringPlan.updatedAt = .now
@@ -545,17 +796,17 @@ struct AssetDetailView: View {
         try? modelContext.save()
     }
 
-    private func recordCashOutflow(amount: Double, date: Date, isRecurring: Bool) {
+    private func recordInvestmentCashTransaction(amount: Double, date: Date, isRecurring: Bool, isSell: Bool) {
         guard amount > 0 else { return }
         let cashAsset = cashAssetForInvestmentPurchase()
-        let outflowAmount = asset.needsCNYConversion ? amount * Market.rate(for: asset.resolvedMarket) : amount
+        let resolvedAmount = asset.needsCNYConversion ? amount * Market.rate(for: asset.resolvedMarket) : amount
         let note: String
         if asset.type == .stock {
-            note = "股票买入：\(asset.name)"
+            note = "\(isSell ? "股票卖出" : "股票买入")：\(asset.name)"
         } else {
-            note = "\(isRecurring ? "基金定投" : "基金申购")：\(asset.name)"
+            note = isSell ? "基金赎回：\(asset.name)" : "\(isRecurring ? "基金定投" : "基金申购")：\(asset.name)"
         }
-        let tx = CashTransaction(amount: -outflowAmount, note: note, date: date)
+        let tx = CashTransaction(amount: isSell ? resolvedAmount : -resolvedAmount, note: note, date: date)
         tx.asset = cashAsset
         modelContext.insert(tx)
     }
@@ -599,7 +850,7 @@ struct AssetDetailView: View {
         guard asset.type == .stock || asset.type == .fund else { return }
         var transactions = asset.investmentTransactions ?? []
         transactions.append(contentsOf: pendingTransactions)
-        updateInvestmentSnapshotFields(using: transactions)
+        updateInvestmentSnapshotFields(using: uniqueInvestmentTransactions(transactions))
     }
 
     private func updateInvestmentSnapshotFields(using transactions: [InvestmentTransaction]) {
@@ -609,12 +860,130 @@ struct AssetDetailView: View {
         guard units > 0 else {
             asset.quantityOrAmount = 0
             asset.cost = 0
+            asset.isArchived = true
+            pauseRecurringPlansForArchivedAsset()
             asset.updatedAt = .now
             return
         }
         asset.quantityOrAmount = units
-        asset.cost = costValue / units
+        asset.cost = max(0, costValue) / units
+        asset.isArchived = false
         asset.updatedAt = .now
+    }
+
+    private func pauseRecurringPlansForArchivedAsset() {
+        for plan in asset.recurringInvestmentPlans ?? [] where plan.isEnabled {
+            plan.isEnabled = false
+            plan.updatedAt = .now
+            RecurringInvestmentNotificationService.cancelNotification(for: plan)
+        }
+    }
+
+    private func synchronizeArchivedStateIfNeeded() {
+        guard asset.type == .stock || asset.type == .fund else { return }
+        let shouldArchive = asset.currentInvestmentUnits <= 0.000001
+        guard asset.isArchived != shouldArchive else { return }
+        asset.isArchived = shouldArchive
+        if shouldArchive {
+            pauseRecurringPlansForArchivedAsset()
+        }
+        asset.updatedAt = .now
+        try? modelContext.save()
+    }
+
+    private func uniqueInvestmentTransactions(_ transactions: [InvestmentTransaction]) -> [InvestmentTransaction] {
+        var seen: Set<UUID> = []
+        return transactions.filter { transaction in
+            seen.insert(transaction.id).inserted
+        }
+    }
+
+    private func applyStockDividend() {
+        guard asset.type == .stock else { return }
+        let seededTransaction = seedInitialInvestmentTransactionIfNeeded()
+        var pendingTransactions: [InvestmentTransaction] = [seededTransaction].compactMap { $0 }
+
+        if let dividendCashAmount, dividendCashAmount > 0 {
+            let tx = InvestmentTransaction(
+                amount: -dividendCashAmount,
+                units: 0,
+                netValue: 0,
+                date: dividendDate,
+                note: dividendNote.isEmpty ? "现金分红" : dividendNote
+            )
+            tx.asset = asset
+            modelContext.insert(tx)
+            pendingTransactions.append(tx)
+
+            let cashAsset = cashAssetForInvestmentPurchase()
+            let resolvedAmount = asset.needsCNYConversion ? dividendCashAmount * Market.rate(for: asset.resolvedMarket) : dividendCashAmount
+            let cashTx = CashTransaction(amount: resolvedAmount, note: "股票分红：\(asset.name)", date: dividendDate)
+            cashTx.asset = cashAsset
+            modelContext.insert(cashTx)
+        }
+
+        if let bonusShares, bonusShares > 0 {
+            let tx = InvestmentTransaction(
+                amount: 0,
+                units: bonusShares,
+                netValue: 0,
+                date: dividendDate,
+                note: dividendNote.isEmpty ? "送股/转增" : dividendNote
+            )
+            tx.asset = asset
+            modelContext.insert(tx)
+            pendingTransactions.append(tx)
+        }
+
+        updateInvestmentSnapshotFields(adding: pendingTransactions)
+        adjustStockQuoteForDividend(cashDividendPerShare: dividendPerShare ?? 0, addedShares: bonusShares ?? 0)
+        asset.updatedAt = .now
+        try? modelContext.save()
+    }
+
+    private func adjustStockQuoteForDividend(cashDividendPerShare: Double, addedShares: Double) {
+        guard asset.type == .stock else { return }
+        let originalQuantity = max(0, displayQuantity - addedShares)
+        if cashDividendPerShare > 0 {
+            asset.latestPrice = max(0, asset.latestPrice - cashDividendPerShare)
+            asset.previousCloseOrNetValue = max(0, asset.previousCloseOrNetValue - cashDividendPerShare)
+        }
+        if addedShares > 0, originalQuantity > 0 {
+            let factor = originalQuantity / (originalQuantity + addedShares)
+            asset.latestPrice = max(0, asset.latestPrice * factor)
+            asset.previousCloseOrNetValue = max(0, asset.previousCloseOrNetValue * factor)
+        }
+    }
+
+    private func transactionCashAmount(_ transaction: InvestmentTransaction) -> Double {
+        if transaction.units == 0, transaction.netValue == 0, transaction.amount < 0 {
+            return abs(transaction.amount)
+        }
+        if transaction.units < 0 {
+            return abs(transaction.units) * transaction.netValue - transaction.fee
+        }
+        return transaction.amount
+    }
+
+    private func transactionDisplayAmount(_ transaction: InvestmentTransaction) -> String {
+        let amount = transactionCashAmount(transaction)
+        if transaction.units == 0 || transaction.netValue == 0 {
+            return FinanceFormatters.signedValueWithSymbol(amount, symbol: asset.currencySymbol)
+        }
+        if transaction.units < 0 {
+            return FinanceFormatters.signedValueWithSymbol(amount, symbol: asset.currencySymbol)
+        }
+        return FinanceFormatters.valueWithSymbol(amount, symbol: asset.currencySymbol)
+    }
+
+    private func transactionSubtitle(_ transaction: InvestmentTransaction) -> String {
+        if transaction.units == 0 {
+            return "现金分红"
+        }
+        if transaction.netValue == 0 {
+            return "\(FinanceFormatters.decimal(abs(transaction.units))) \(investmentUnitName)"
+        }
+        return "\(FinanceFormatters.decimal(abs(transaction.units))) \(investmentUnitName) @ \(FinanceFormatters.valueWithSymbol(transaction.netValue, symbol: asset.currencySymbol))"
     }
 
     private func prepareRecurringPlanEditor(_ plan: RecurringInvestmentPlan?) {
@@ -766,7 +1135,7 @@ struct AssetDetailView: View {
         return calendar.date(from: components) ?? date
     }
 
-    private func cumulativeReturnRate() -> String? {
+    private func cumulativeReturnRate(for performance: AssetPerformance) -> String? {
         guard performance.costValue > 0 else { return nil }
         let rate = performance.cumulativeProfitLoss / performance.costValue
         let prefix = rate > 0 ? "+" : ""
@@ -781,6 +1150,47 @@ struct AssetDetailView: View {
         case .cash: "现金余额"
         }
     }
+}
+
+private struct AssetDetailSnapshot {
+    let currentValueText: String
+    let cumulativeProfitLossText: String
+    let cumulativeProfitLossColor: Color
+    let cumulativeReturnRateText: String?
+    let costValueText: String
+    let dailyProfitLossText: String
+    let dailyProfitLossColor: Color
+    let dailyProfitLossPercentText: String
+    let displayQuantityText: String
+    let displayCostText: String
+    let latestPriceText: String
+    let previousCloseText: String
+    let annualYieldText: String
+    let startDateText: String
+    let maturityDateText: String
+    let initialCashText: String
+    let quoteUpdatedAtText: String?
+    let investmentRows: [InvestmentTransactionRowData]
+    let cashRows: [CashTransactionRowData]
+}
+
+private struct InvestmentTransactionRowData: Identifiable {
+    var id: UUID { transaction.id }
+    let transaction: InvestmentTransaction
+    let title: String
+    let dateText: String
+    let amountText: String
+    let amountColor: Color
+    let subtitle: String
+}
+
+private struct CashTransactionRowData: Identifiable {
+    var id: UUID { transaction.id }
+    let transaction: CashTransaction
+    let note: String
+    let dateText: String
+    let amountText: String
+    let amountColor: Color
 }
 
 private struct DetailRow: View {

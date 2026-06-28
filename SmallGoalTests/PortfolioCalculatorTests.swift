@@ -70,6 +70,46 @@ final class PortfolioCalculatorTests: XCTestCase {
         XCTAssertEqual(PortfolioCalculator.dailyProfitLoss(for: asset), 30, accuracy: 0.001)
     }
 
+    func testFundPerformanceReducesCostBasisForSellTransactions() {
+        let asset = Asset(
+            type: .fund,
+            name: "指数基金",
+            code: "510300",
+            quantityOrAmount: 1_000,
+            cost: 1,
+            latestPrice: 1.3,
+            previousCloseOrNetValue: 1.25
+        )
+        let buy = InvestmentTransaction(amount: 1_000, units: 1_000, netValue: 1)
+        let sell = InvestmentTransaction(amount: -300, units: -300, netValue: 1.2, fee: 1, note: "减仓")
+        asset.investmentTransactions = [buy, sell]
+
+        XCTAssertEqual(PortfolioCalculator.currentValue(for: asset), 910, accuracy: 0.001)
+        XCTAssertEqual(PortfolioCalculator.costValue(for: asset), 700, accuracy: 0.001)
+        XCTAssertEqual(PortfolioCalculator.cumulativeProfitLoss(for: asset), 210, accuracy: 0.001)
+        XCTAssertEqual(PortfolioCalculator.dailyProfitLoss(for: asset), 35, accuracy: 0.001)
+    }
+
+    func testClearedInvestmentKeepsRealizedProfitLoss() {
+        let asset = Asset(
+            type: .stock,
+            name: "测试股票",
+            code: "000001",
+            quantityOrAmount: 0,
+            cost: 0,
+            latestPrice: 12,
+            previousCloseOrNetValue: 11,
+            isArchived: true
+        )
+        let buy = InvestmentTransaction(amount: 1_000, units: 100, netValue: 10)
+        let sell = InvestmentTransaction(amount: -1_000, units: -100, netValue: 12, fee: 2, note: "卖出")
+        asset.investmentTransactions = [buy, sell]
+
+        XCTAssertEqual(PortfolioCalculator.currentValue(for: asset), 0, accuracy: 0.001)
+        XCTAssertEqual(PortfolioCalculator.costValue(for: asset), 1_000, accuracy: 0.001)
+        XCTAssertEqual(PortfolioCalculator.cumulativeProfitLoss(for: asset), 198, accuracy: 0.001)
+    }
+
     func testPortfolioExportIncludesCashTransactions() throws {
         let calendar = Calendar(identifier: .gregorian)
         let incomeDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1))!
@@ -88,7 +128,7 @@ final class PortfolioCalculatorTests: XCTestCase {
         let data = try JSONEncoder().encode(export)
         let decoded = try JSONDecoder().decode(PortfolioExport.self, from: data)
 
-        XCTAssertEqual(decoded.version, 3)
+        XCTAssertEqual(decoded.version, 4)
         XCTAssertEqual(decoded.assets.count, 1)
         XCTAssertEqual(decoded.assets[0].transactions.count, 2)
         XCTAssertEqual(decoded.assets[0].transactions.map(\.amount).sorted(), [-120, 500])
@@ -115,7 +155,7 @@ final class PortfolioCalculatorTests: XCTestCase {
         let data = try JSONEncoder().encode(export)
         let decoded = try JSONDecoder().decode(PortfolioExport.self, from: data)
 
-        XCTAssertEqual(decoded.version, 3)
+        XCTAssertEqual(decoded.version, 4)
         XCTAssertEqual(decoded.assets[0].investmentTransactions.count, 1)
         XCTAssertEqual(decoded.assets[0].investmentTransactions[0].note, "定投")
         XCTAssertEqual(decoded.assets[0].investmentTransactions[0].fee, 1)

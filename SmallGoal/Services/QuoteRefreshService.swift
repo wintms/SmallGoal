@@ -131,7 +131,7 @@ final class QuoteRefreshService: ObservableObject {
             }
         }
 
-        let quoteBackedAssets = assets.filter { $0.isQuoteBacked && !$0.code.isEmpty }
+        let quoteBackedAssets = assets.filter { !$0.isEffectivelyArchived && $0.isQuoteBacked && !$0.code.isEmpty }
         let codes = Array(Set(quoteBackedAssets.map(\.code))).sorted()
 
         guard !codes.isEmpty else {
@@ -155,7 +155,7 @@ final class QuoteRefreshService: ObservableObject {
             return
         }
 
-        let codes = Array(Set(assets.filter { $0.isQuoteBacked && !$0.code.isEmpty }.map(\.code))).sorted()
+        let codes = Array(Set(assets.filter { !$0.isEffectivelyArchived && $0.isQuoteBacked && !$0.code.isEmpty }.map(\.code))).sorted()
         guard !codes.isEmpty else {
             state = .success(
                 message: "配置格式可用，暂无持仓代码可测试",
